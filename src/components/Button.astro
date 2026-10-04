@@ -1,0 +1,157 @@
+---
+import type { HTMLAttributes } from "astro/types";
+
+interface Props extends Omit<HTMLAttributes<"button">, "type"> {
+  variant?: "primary" | "secondary" | "outline" | "ghost" | "destructive";
+  size?: "sm" | "md" | "lg" | "icon";
+  /** Renders an <a> when set, otherwise a <button>. */
+  href?: string;
+  type?: "button" | "submit" | "reset";
+  disabled?: boolean;
+}
+
+const {
+  variant = "primary",
+  size = "md",
+  href,
+  type = "button",
+  disabled,
+  class: className,
+  ...rest
+} = Astro.props;
+---
+
+{href ? (
+  <a
+    href={href}
+    class:list={["btn", className]}
+    data-variant={variant}
+    data-size={size}
+    {...(rest as object)}
+  >
+    <slot />
+  </a>
+) : (
+  <button
+    type={type}
+    disabled={disabled}
+    class:list={["btn", className]}
+    data-variant={variant}
+    data-size={size}
+    {...rest}
+  >
+    <slot />
+  </button>
+)}
+
+<style>
+  @layer components {
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      border: var(--border-width) solid transparent;
+      border-radius: var(--radius-lg);
+      font-weight: var(--weight-medium);
+      font-size: var(--text-sm);
+      line-height: 1;
+      text-decoration: none;
+      cursor: pointer;
+      transition:
+        background-color var(--duration-fast) var(--ease-out),
+        color var(--duration-fast) var(--ease-out);
+
+      &[data-size="sm"] {
+        block-size: 2rem;
+        padding-inline: var(--space-3);
+      }
+
+      &[data-size="md"] {
+        block-size: 2.5rem;
+        padding-inline: var(--space-4);
+      }
+
+      &[data-size="lg"] {
+        block-size: 2.75rem;
+        padding-inline: var(--space-5);
+        font-size: var(--text-base);
+      }
+
+      &[data-size="icon"] {
+        inline-size: 2.5rem;
+        block-size: 2.5rem;
+        padding: 0;
+      }
+
+      &[data-variant="primary"] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+
+        &:hover {
+          background: color-mix(in oklch, var(--primary) 90%, transparent);
+        }
+
+        &:active {
+          background: color-mix(in oklch, var(--primary) 80%, transparent);
+        }
+      }
+
+      &[data-variant="secondary"] {
+        background: var(--secondary);
+        color: var(--secondary-foreground);
+
+        &:hover {
+          background: color-mix(in oklch, var(--secondary) 80%, transparent);
+        }
+
+        &:active {
+          background: color-mix(in oklch, var(--secondary) 70%, transparent);
+        }
+      }
+
+      &[data-variant="outline"] {
+        background: transparent;
+        color: var(--foreground);
+        border-color: var(--input);
+
+        &:hover {
+          background: var(--accent);
+          color: var(--accent-foreground);
+        }
+      }
+
+      &[data-variant="ghost"] {
+        background: transparent;
+        color: var(--foreground);
+
+        &:hover {
+          background: var(--accent);
+          color: var(--accent-foreground);
+        }
+      }
+
+      &[data-variant="destructive"] {
+        background: var(--destructive);
+        color: var(--destructive-foreground);
+
+        &:hover {
+          background: color-mix(in oklch, var(--destructive) 90%, transparent);
+        }
+
+        &:active {
+          background: color-mix(in oklch, var(--destructive) 80%, transparent);
+        }
+      }
+
+      &:disabled {
+        pointer-events: none;
+        opacity: 0.5;
+      }
+
+      @media (forced-colors: active) {
+        border-color: ButtonText;
+      }
+    }
+  }
+</style>

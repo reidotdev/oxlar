@@ -1,0 +1,84 @@
+---
+import { fieldIds } from "../lib/field.ts";
+
+interface Props {
+  id: string;
+  label: string;
+  description?: string | undefined;
+  error?: string | undefined;
+  required?: boolean | undefined;
+  /** Use a <fieldset>/<legend> (radio groups) instead of <label>. */
+  group?: boolean;
+}
+
+const { id, label, description, error, required, group = false } = Astro.props;
+const ids = fieldIds({ id, description, error });
+const Wrapper = group ? "fieldset" : "div";
+const LabelTag = group ? "legend" : "label";
+---
+
+<Wrapper
+  class="field"
+  data-invalid={error ? "" : undefined}
+  aria-describedby={group ? ids.describedby : undefined}
+>
+  <LabelTag class="field-label" for={group ? undefined : id}>
+    {label}
+    {required && (
+      <span class="required" aria-hidden="true">
+        {" "}
+        *
+      </span>
+    )}
+  </LabelTag>
+  <slot />
+  {description && (
+    <p class="field-description" id={ids.descriptionId}>
+      {description}
+    </p>
+  )}
+  <p class="field-error" id={ids.errorId} data-field-error>
+    {error}
+  </p>
+</Wrapper>
+
+<style>
+  @layer components {
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      min-inline-size: 0;
+      padding: 0;
+      border: 0;
+    }
+
+    .field-label {
+      padding: 0;
+      font-size: var(--text-sm);
+      font-weight: var(--weight-medium);
+    }
+
+    .field-description {
+      font-size: var(--text-sm);
+      color: var(--muted-foreground);
+    }
+
+    .field-error {
+      font-size: var(--text-sm);
+      color: var(--destructive);
+
+      &:empty {
+        display: none;
+      }
+    }
+
+    .required {
+      color: var(--destructive);
+    }
+  }
+</style>
+
+<script>
+  import "../islands/field-validation.ts";
+</script>

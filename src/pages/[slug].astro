@@ -1,0 +1,77 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Section from "../components/Section.astro";
+import Heading from "../components/Heading.astro";
+import Text from "../components/Text.astro";
+import RichText from "../components/portable-text/RichText.astro";
+import { getSiteSettings } from "../lib/site.ts";
+import { abs, buildSeo } from "../lib/seo.ts";
+import { sanityFetch } from "../lib/sanity/client.ts";
+import { pageBySlugQuery, pageSlugsQuery } from "../lib/sanity/queries.ts";
+import type {
+  PageBySlugQueryResult,
+  PageSlugsQueryResult,
+} from "../lib/sanity/sanity.types.ts";
+import { validateDocument } from "../lib/sanity/validate.ts";
+import { RESERVED_SLUGS } from "../lib/reserved.ts";
+
+export async function getStaticPaths() {
+  const slugs = await sanityFetch<PageSlugsQueryResult>(pageSlugsQuery);
+  return slugs.flatMap(({ _id, slug }) => {
+    if (!slug) return [];
+    if (RESERVED_SLUGS.includes(slug)) {
+      throw new Error(
+        `[sanity] Page ${_id} uses the reserved slug "${slug}". Reserved: ${RESERVED_SLUGS.join(", ")}.`,
+      );
+    }
+    return [{ params: { slug } }];
+  });
+}
+
+const { slug } = Astro.params;
+const [site, page] = await Promise.all([
+  getSiteSettings(),
+  sanityFetch<PageBySlugQueryResult>(pageBySlugQuery, { slug }),
+]);
+if (!page) throw new Error(`[sanity] No page found for slug "${slug}"`);
+validateDocument(page);
+
+const path = `/${page.slug}`;
+const seo = buildSeo(
+  {
+    path,
+    title: page.seo?.title ?? page.title,
+    description: page.seo?.description ?? page.excerpt,
+    noindex: page.seo?.noindex,
+    modifiedAt: page._updatedAt,
+    breadcrumbs: [
+      { name: "Home", path: "/" },
+      { name: page.title ?? "", path },
+    ],
+    jsonLd: [
+      {
+        "@type": "CreativeWork",
+        name: page.title,
+        description: page.excerpt ?? undefined,
+        url: abs(path),
+        dateModified: page._updatedAt,
+      },
+    ],
+  },
+  site,
+);
+---
+
+<BaseLayout seo={seo} site={site}>
+  <Section narrow>
+    <article class="stack">
+      <Heading level={1}>{page.title}</Heading>
+      {page.excerpt && (
+        <Text size="xl" tone="muted">
+          {page.excerpt}
+        </Text>
+      )}
+      <RichText value={page.body} />
+    </article>
+  </Section>
+</BaseLayout>

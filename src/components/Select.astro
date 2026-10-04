@@ -1,0 +1,123 @@
+---
+import type { HTMLAttributes } from "astro/types";
+import FieldShell from "./FieldShell.astro";
+import Icon from "./Icon.astro";
+import { fieldIds } from "../lib/field.ts";
+
+interface Option {
+  value: string;
+  label: string;
+  disabled?: boolean;
+}
+
+interface Props extends Omit<HTMLAttributes<"select">, "id"> {
+  label: string;
+  name: string;
+  options: Option[];
+  id?: string;
+  description?: string;
+  error?: string;
+  /** Selected value. */
+  value?: string;
+  /** Shown as a disabled first option while nothing is selected. */
+  placeholder?: string;
+}
+
+const {
+  label,
+  name,
+  options,
+  id = name,
+  description,
+  error,
+  value,
+  placeholder,
+  class: className,
+  required,
+  ...rest
+} = Astro.props;
+const ids = fieldIds({ id, description, error });
+---
+
+<FieldShell
+  id={id}
+  label={label}
+  description={description}
+  error={error}
+  required={Boolean(required)}
+>
+  <div class="select-wrap">
+    <select
+      class:list={["control", className]}
+      id={id}
+      name={name}
+      required={required}
+      aria-describedby={ids.describedby}
+      aria-invalid={ids.invalid}
+      {...rest}
+    >
+      {placeholder && (
+        <option value="" disabled selected={!value}>
+          {placeholder}
+        </option>
+      )}
+      {options.map((o) => (
+        <option
+          value={o.value}
+          disabled={o.disabled}
+          selected={o.value === value}
+        >
+          {o.label}
+        </option>
+      ))}
+    </select>
+    <Icon name="chevron-down" class="chevron" />
+  </div>
+</FieldShell>
+
+<style>
+  @layer components {
+    .select-wrap {
+      position: relative;
+      display: grid;
+    }
+
+    .control {
+      appearance: none;
+      block-size: 2.5rem;
+      padding-inline: var(--space-3) var(--space-7);
+      border: var(--border-width) solid var(--input);
+      border-radius: var(--radius-lg);
+      background: var(--background);
+      color: var(--foreground);
+      font-size: var(--text-sm);
+      cursor: pointer;
+
+      &:hover {
+        border-color: color-mix(in oklch, var(--ring) 60%, transparent);
+      }
+
+      &:focus-visible {
+        border-color: var(--ring);
+      }
+
+      &[aria-invalid="true"] {
+        border-color: var(--destructive);
+      }
+
+      &:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+    }
+
+    .select-wrap :global(.chevron) {
+      position: absolute;
+      inset-inline-end: var(--space-3);
+      inset-block-start: 50%;
+      translate: 0 -50%;
+      color: var(--muted-foreground);
+      pointer-events: none;
+    }
+  }
+</style>

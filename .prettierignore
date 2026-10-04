@@ -1,0 +1,7 @@
+dist
+.astro
+node_modules
+pnpm-lock.yaml
+studio/dist
+src/lib/sanity/sanity.types.ts
+studio/schema.json

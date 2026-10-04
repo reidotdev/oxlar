@@ -1,0 +1,123 @@
+---
+interface Item {
+  label: string;
+  href?: string;
+  disabled?: boolean;
+}
+
+interface Props {
+  id: string;
+  /** Visible text of the trigger button. */
+  label: string;
+  items: Item[];
+}
+
+const { id, label, items } = Astro.props;
+---
+
+<button
+  type="button"
+  class="trigger"
+  popovertarget={id}
+  aria-haspopup="menu"
+  aria-controls={id}
+>
+  {label}
+  <slot name="icon" />
+</button>
+<div id={id} class="menu" popover role="menu" aria-label={label} data-menu>
+  {items.map((item) =>
+    item.href ? (
+      <a
+        role="menuitem"
+        href={item.href}
+        tabindex="-1"
+        aria-disabled={item.disabled || undefined}
+      >
+        {item.label}
+      </a>
+    ) : (
+      <button
+        type="button"
+        role="menuitem"
+        tabindex="-1"
+        disabled={item.disabled}
+      >
+        {item.label}
+      </button>
+    ),
+  )}
+</div>
+
+<style>
+  @layer components {
+    .trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      block-size: 2.5rem;
+      padding-inline: var(--space-4);
+      border: var(--border-width) solid var(--input);
+      border-radius: var(--radius-lg);
+      background: transparent;
+      font-size: var(--text-sm);
+      font-weight: var(--weight-medium);
+      cursor: pointer;
+
+      &:hover,
+      &[aria-expanded="true"] {
+        background: var(--accent);
+        color: var(--accent-foreground);
+      }
+    }
+
+    .menu {
+      min-inline-size: 10rem;
+      margin: var(--space-1) 0 0;
+      padding: var(--space-1);
+      border: var(--border-width) solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--card);
+      color: var(--card-foreground);
+      box-shadow: var(--shadow-md);
+      inset: auto;
+      position-area: bottom span-right;
+      position-try-fallbacks: flip-block, flip-inline;
+
+      &:popover-open {
+        display: flex;
+        flex-direction: column;
+      }
+
+      & :is(a, button) {
+        display: flex;
+        align-items: center;
+        padding: var(--space-2);
+        border: 0;
+        border-radius: var(--radius-md);
+        background: transparent;
+        color: inherit;
+        font-size: var(--text-sm);
+        text-align: start;
+        text-decoration: none;
+        cursor: pointer;
+
+        &:hover,
+        &:focus-visible {
+          background: var(--accent);
+          color: var(--accent-foreground);
+          outline-offset: calc(var(--ring-width) * -1);
+        }
+
+        &:is(:disabled, [aria-disabled="true"]) {
+          pointer-events: none;
+          opacity: 0.5;
+        }
+      }
+    }
+  }
+</style>
+
+<script>
+  import "../islands/menu.ts";
+</script>

@@ -1,0 +1,50 @@
+---
+interface Props {
+  /** Element for the card. Use "article" for list items that stand alone. */
+  as?: "div" | "article" | "li";
+  /** Makes the whole card clickable through a stretched link: set it on the inner <a class="card-link">. */
+  interactive?: boolean;
+  class?: string;
+}
+
+const { as: Tag = "div", interactive = false, class: className } = Astro.props;
+---
+
+<Tag
+  class:list={["card", className]}
+  data-interactive={interactive || undefined}
+>
+  <slot />
+</Tag>
+
+<style>
+  @layer components {
+    .card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+      padding: var(--space-5);
+      border: var(--border-width) solid var(--border);
+      border-radius: var(--radius-xl);
+      background: var(--card);
+      color: var(--card-foreground);
+
+      &[data-interactive] {
+        transition: border-color var(--duration-fast) var(--ease-out);
+
+        &:hover,
+        &:focus-within {
+          border-color: var(--ring);
+        }
+
+        /* Stretched link: one tab stop, whole card is the target. */
+        & :global(.card-link)::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+        }
+      }
+    }
+  }
+</style>

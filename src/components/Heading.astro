@@ -1,0 +1,61 @@
+---
+interface Props {
+  level?: 1 | 2 | 3 | 4 | 5 | 6;
+  /** Visual size, independent of the semantic level. */
+  size?: "xs" | "sm" | "base" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
+  class?: string;
+  id?: string;
+}
+
+const { level = 2, size, class: className, id } = Astro.props;
+const Tag = `h${level}` as const;
+const defaults = {
+  1: "4xl",
+  2: "3xl",
+  3: "2xl",
+  4: "xl",
+  5: "lg",
+  6: "base",
+} as const;
+---
+
+<Tag
+  id={id}
+  class:list={["heading", className]}
+  data-size={size ?? defaults[level]}
+>
+  <slot />
+</Tag>
+
+<style>
+  @layer components {
+    .heading {
+      font-weight: var(--weight-bold);
+
+      &[data-size="xs"] {
+        font-size: var(--text-xs);
+      }
+      &[data-size="sm"] {
+        font-size: var(--text-sm);
+      }
+      &[data-size="base"] {
+        font-size: var(--text-base);
+      }
+      &[data-size="lg"] {
+        font-size: var(--text-lg);
+      }
+      &[data-size="xl"] {
+        font-size: var(--text-xl);
+      }
+      &[data-size="2xl"] {
+        font-size: var(--text-2xl);
+      }
+      &[data-size="3xl"] {
+        font-size: var(--text-3xl);
+      }
+      &[data-size="4xl"] {
+        font-size: var(--text-4xl);
+      }
+    }
+  }
+</style>

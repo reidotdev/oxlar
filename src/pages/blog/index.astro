@@ -1,0 +1,61 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import Section from "../../components/Section.astro";
+import Heading from "../../components/Heading.astro";
+import Text from "../../components/Text.astro";
+import Card from "../../components/Card.astro";
+import Grid from "../../components/Grid.astro";
+import { getSiteSettings } from "../../lib/site.ts";
+import { buildSeo } from "../../lib/seo.ts";
+import { sanityFetch } from "../../lib/sanity/client.ts";
+import { postsQuery } from "../../lib/sanity/queries.ts";
+import type { PostsQueryResult } from "../../lib/sanity/sanity.types.ts";
+import { formatDate } from "../../lib/format.ts";
+
+const [site, posts] = await Promise.all([
+  getSiteSettings(),
+  sanityFetch<PostsQueryResult>(postsQuery),
+]);
+const seo = buildSeo(
+  {
+    path: "/blog",
+    title: "Blog",
+    description: `Posts from ${site.title}.`,
+    breadcrumbs: [
+      { name: "Home", path: "/" },
+      { name: "Blog", path: "/blog" },
+    ],
+  },
+  site,
+);
+---
+
+<BaseLayout seo={seo} site={site}>
+  <Section>
+    <div class="stack">
+      <Heading level={1}>Blog</Heading>
+      {posts.length === 0 && <Text tone="muted">No posts yet.</Text>}
+      <Grid as="ul" min="md">
+        {posts.map((post) => (
+          <Card as="li" interactive>
+            <Heading level={2} size="xl">
+              <a class="card-link" href={`/blog/${post.slug}`}>
+                {post.title}
+              </a>
+            </Heading>
+            {post.excerpt && (
+              <Text size="sm" tone="muted">
+                {post.excerpt}
+              </Text>
+            )}
+            <Text size="xs" tone="muted">
+              <time datetime={post.publishedAt ?? undefined}>
+                {formatDate(post.publishedAt)}
+              </time>
+            </Text>
+          </Card>
+        ))}
+      </Grid>
+    </div>
+  </Section>
+</BaseLayout>

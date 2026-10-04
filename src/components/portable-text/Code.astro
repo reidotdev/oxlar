@@ -1,0 +1,26 @@
+---
+const { node } = Astro.props;
+const { language = "text", code = "" } = node as {
+  language?: string;
+  code?: string;
+};
+---
+
+<pre
+  class="code"
+  data-language={language}
+  tabindex="0"
+><code>{code}</code></pre>
+
+<style>
+  @layer components {
+    .code {
+      overflow-x: auto;
+      padding: var(--space-4);
+      border-radius: var(--radius-lg);
+      background: var(--muted);
+      color: var(--foreground);
+      line-height: var(--leading-snug);
+    }
+  }
+</style>

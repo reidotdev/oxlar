@@ -21,15 +21,15 @@ BMT-214A is much smaller than the spec assumes. Nothing blocks the rewrite, but 
 
 ---
 
-| Route | File | Renders |
-| --- | --- | --- |
-| `/` | `src/app/page.tsx` | Hero in `Reveal`, `Showcase` (live demo of every UI component), list of Sanity `page` documents (or a "not configured" note) |
-| `/studio/[[...tool]]` | `src/app/studio/[[...tool]]/page.tsx` | Embedded Sanity Studio (`force-static`) |
-| `/api/draft-mode/enable` | `src/app/api/draft-mode/enable/route.ts` | Enables Next draft mode via `defineEnableDraftMode`; 404 without a read token |
-| `/api/draft-mode/disable` | `.../disable/route.ts` | Disables draft mode, redirects to `/` |
-| `/robots.txt` | `src/app/robots.ts` | Allow `/`, disallow `/studio/`, sitemap link |
-| `/sitemap.xml` | `src/app/sitemap.ts` | Home URL only |
-| `/opengraph-image` | `src/app/opengraph-image.tsx` | 1200x630, `#0a0a0a` background, white 72px site name, `#a3a3a3` 32px description, `sans-serif` |
+| Route                     | File                                     | Renders                                                                                                                      |
+| ------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `/`                       | `src/app/page.tsx`                       | Hero in `Reveal`, `Showcase` (live demo of every UI component), list of Sanity `page` documents (or a "not configured" note) |
+| `/studio/[[...tool]]`     | `src/app/studio/[[...tool]]/page.tsx`    | Embedded Sanity Studio (`force-static`)                                                                                      |
+| `/api/draft-mode/enable`  | `src/app/api/draft-mode/enable/route.ts` | Enables Next draft mode via `defineEnableDraftMode`; 404 without a read token                                                |
+| `/api/draft-mode/disable` | `.../disable/route.ts`                   | Disables draft mode, redirects to `/`                                                                                        |
+| `/robots.txt`             | `src/app/robots.ts`                      | Allow `/`, disallow `/studio/`, sitemap link                                                                                 |
+| `/sitemap.xml`            | `src/app/sitemap.ts`                     | Home URL only                                                                                                                |
+| `/opengraph-image`        | `src/app/opengraph-image.tsx`            | 1200x630, `#0a0a0a` background, white 72px site name, `#a3a3a3` 32px description, `sans-serif`                               |
 
 Layout (`layout.tsx`): `<html lang="en">`, Inter via `next/font` (`--font-inter`, swap), metadata (title template `%s · name`, OG, Twitter `summary_large_image`), `Providers` (RAC `RouterProvider` bridging Next's router), `SanityLive` when configured. `providers.tsx` and `SanityLive` have no equivalent in oxlar (no client router, no live content).
 
@@ -39,24 +39,24 @@ Layout (`layout.tsx`): `<html lang="en">`, Inter via `next/font` (`--font-inter`
 
 All of `src/components/ui/*` wrap React Aria Components (RAC) and style with Tailwind `data-[state]` variants. Shared helpers in `ui/styles.ts`: `focusRing`, `fieldBorder`. Utility `cn()` (clsx + tailwind-merge).
 
-| Component | Props / variants | States | RAC dependency | oxlar replacement |
-| --- | --- | --- | --- | --- |
-| `Button` | `variant`: primary, secondary, outline, ghost, destructive; `size`: sm, md, lg, icon; all RAC button props | hover, pressed, focus-visible, disabled | `Button` | `Button.astro`, native `<button>` or `<a>` |
-| `Link` | `variant`: default, muted, button | hover, focus-visible, disabled | `Link` | `Link.astro`, native `<a>` |
-| `TextField` | label, description, errorMessage, type, placeholder | hover, focus-within, invalid, disabled | `TextField`, `Input`, `Label`, `Text`, `FieldError` | `TextField.astro`, native `<input>` + constraint validation, `aria-describedby` |
-| `TextArea` | as `TextField`, rows | same | `TextField`, `TextArea` | `TextArea.astro` |
-| `Select` / `SelectItem` | label, description, placeholder, errorMessage, items, `defaultSelectedKey` | hover, focused item, selected item (check), disabled, placeholder | `Select`, `Popover`, `ListBox`, `ListBoxItem` | `Select.astro` on native `<select>`. **Flag:** loses the custom popover list styling and typeahead-in-popover chrome. If a rich listbox is needed, use the opt-in React Aria island module. |
-| `Checkbox` | `defaultSelected`, indeterminate | hover, selected, indeterminate, focus-visible, disabled | `Checkbox` | `Checkbox.astro`, native `<input type=checkbox>` |
-| `RadioGroup` / `Radio` | label, value | hover, selected, focus-visible, disabled | `RadioGroup`, `Radio` | `RadioGroup.astro` with `<fieldset>`/`<legend>`, native radios |
-| `Modal` / `DialogTrigger` / `DialogTitle` | `isDismissable`; slot="close" buttons | entering/exiting animation, focus trap | `ModalOverlay`, `Modal`, `Dialog`, `Heading` | `Dialog.astro` on native `<dialog>` + small controller in `src/islands/` |
-| `Menu` / `MenuItem` / `MenuTrigger` | `popoverProps` | focused, disabled, entering/exiting | `MenuTrigger`, `Menu`, `MenuItem`, `Popover` | `Menu.astro` on Popover API + keyboard enhancement island |
-| `Tabs` / `TabList` / `Tab` / `TabPanel` | orientation | hover, selected, focus-visible, disabled | `Tabs` family | `Tabs.astro` as a web component; without JS all panels render stacked |
-| `Tooltip` / `TooltipTrigger` | `showArrow`, `offset` | entering/exiting | `Tooltip`, `OverlayArrow` | `Tooltip.astro`, CSS show on hover/focus, island for Escape dismissal (WCAG 1.4.13) |
-| `Label`, `Description`, `FieldError` | className | disabled | RAC primitives | folded into field components |
-| `Section` (layout) | `surface`: default, dark, light; `bandClassName`; `backdrop` slot | n/a | none | `Section.astro` (same props; named slot `backdrop`) |
-| `BackgroundVideo` (media) | `src`, `poster`; muted, playsInline, loop, autoplay, aria-hidden, reduced-motion pause with live listener | n/a | none | `BackgroundVideo.astro` + tiny island for the reduced-motion listener |
-| `Reveal` (motion) | `delay`, `y` | n/a | `@gsap/react` | `data-motion="reveal"` attributes, `src/motion/reveal.ts` |
-| `Showcase` | demo only, "delete per project" | n/a | all of the above | replaced by `/styleguide` |
+| Component                                 | Props / variants                                                                                           | States                                                            | RAC dependency                                      | oxlar replacement                                                                                                                                                                           |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Button`                                  | `variant`: primary, secondary, outline, ghost, destructive; `size`: sm, md, lg, icon; all RAC button props | hover, pressed, focus-visible, disabled                           | `Button`                                            | `Button.astro`, native `<button>` or `<a>`                                                                                                                                                  |
+| `Link`                                    | `variant`: default, muted, button                                                                          | hover, focus-visible, disabled                                    | `Link`                                              | `Link.astro`, native `<a>`                                                                                                                                                                  |
+| `TextField`                               | label, description, errorMessage, type, placeholder                                                        | hover, focus-within, invalid, disabled                            | `TextField`, `Input`, `Label`, `Text`, `FieldError` | `TextField.astro`, native `<input>` + constraint validation, `aria-describedby`                                                                                                             |
+| `TextArea`                                | as `TextField`, rows                                                                                       | same                                                              | `TextField`, `TextArea`                             | `TextArea.astro`                                                                                                                                                                            |
+| `Select` / `SelectItem`                   | label, description, placeholder, errorMessage, items, `defaultSelectedKey`                                 | hover, focused item, selected item (check), disabled, placeholder | `Select`, `Popover`, `ListBox`, `ListBoxItem`       | `Select.astro` on native `<select>`. **Flag:** loses the custom popover list styling and typeahead-in-popover chrome. If a rich listbox is needed, use the opt-in React Aria island module. |
+| `Checkbox`                                | `defaultSelected`, indeterminate                                                                           | hover, selected, indeterminate, focus-visible, disabled           | `Checkbox`                                          | `Checkbox.astro`, native `<input type=checkbox>`                                                                                                                                            |
+| `RadioGroup` / `Radio`                    | label, value                                                                                               | hover, selected, focus-visible, disabled                          | `RadioGroup`, `Radio`                               | `RadioGroup.astro` with `<fieldset>`/`<legend>`, native radios                                                                                                                              |
+| `Modal` / `DialogTrigger` / `DialogTitle` | `isDismissable`; slot="close" buttons                                                                      | entering/exiting animation, focus trap                            | `ModalOverlay`, `Modal`, `Dialog`, `Heading`        | `Dialog.astro` on native `<dialog>` + small controller in `src/islands/`                                                                                                                    |
+| `Menu` / `MenuItem` / `MenuTrigger`       | `popoverProps`                                                                                             | focused, disabled, entering/exiting                               | `MenuTrigger`, `Menu`, `MenuItem`, `Popover`        | `Menu.astro` on Popover API + keyboard enhancement island                                                                                                                                   |
+| `Tabs` / `TabList` / `Tab` / `TabPanel`   | orientation                                                                                                | hover, selected, focus-visible, disabled                          | `Tabs` family                                       | `Tabs.astro` as a web component; without JS all panels render stacked                                                                                                                       |
+| `Tooltip` / `TooltipTrigger`              | `showArrow`, `offset`                                                                                      | entering/exiting                                                  | `Tooltip`, `OverlayArrow`                           | `Tooltip.astro`, CSS show on hover/focus, island for Escape dismissal (WCAG 1.4.13)                                                                                                         |
+| `Label`, `Description`, `FieldError`      | className                                                                                                  | disabled                                                          | RAC primitives                                      | folded into field components                                                                                                                                                                |
+| `Section` (layout)                        | `surface`: default, dark, light; `bandClassName`; `backdrop` slot                                          | n/a                                                               | none                                                | `Section.astro` (same props; named slot `backdrop`)                                                                                                                                         |
+| `BackgroundVideo` (media)                 | `src`, `poster`; muted, playsInline, loop, autoplay, aria-hidden, reduced-motion pause with live listener  | n/a                                                               | none                                                | `BackgroundVideo.astro` + tiny island for the reduced-motion listener                                                                                                                       |
+| `Reveal` (motion)                         | `delay`, `y`                                                                                               | n/a                                                               | `@gsap/react`                                       | `data-motion="reveal"` attributes, `src/motion/reveal.ts`                                                                                                                                   |
+| `Showcase`                                | demo only, "delete per project"                                                                            | n/a                                                               | all of the above                                    | replaced by `/styleguide`                                                                                                                                                                   |
 
 New in oxlar (spec): Heading, Text, Card, Badge, Tag, Divider, Container, Grid, Disclosure, Icon, SanityImage, SEO, Portable Text components.
 
@@ -113,16 +113,16 @@ Only `src/components/motion/reveal.tsx`: plugin `ScrollTrigger` (+ `useGSAP`), `
 
 Flags: `--modules-only`; `--config <file> --non-interactive`. Prompts are keyed (`name`, `siteUrl`, `github.push`, `sanity.mode`, ...) so a config file can answer them. Answers for remote steps: `true`, `false`, `"later"`.
 
-| Step | What it does | Prompts / config keys |
-| --- | --- | --- |
-| 1 Project details | name, slug, description, site URL; rewrites siteConfig, package name | `name`, `description`, `siteUrl` |
-| 2 Environment | `.env.local` from `.env.example` | none |
-| 3 Git | initial commit when needed | none |
-| 4 GitHub | push to existing origin, or `gh repo create --private` | `github.push`, `github.create` |
-| 5 Sanity | login check, create or reuse project, dataset, organization, optional read token, CORS origins (localhost + production, with credentials), writes unquoted `.env.local` | `sanity.mode/projectId/dataset/organization/token/cors`, `sanity.login` |
-| 6 Template invariants | runs `verify-template` | none |
-| 7 Optional modules | table-driven (`MODULES`: id, label, description, dependencies, devDependencies, files) | `modules.<id>` |
-| 8 Vercel | `vercel link --yes`, push env vars (localhost URL to development only), optional `vercel --prod --yes` | `vercel.link/deploy/scope` |
+| Step                  | What it does                                                                                                                                                            | Prompts / config keys                                                   |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| 1 Project details     | name, slug, description, site URL; rewrites siteConfig, package name                                                                                                    | `name`, `description`, `siteUrl`                                        |
+| 2 Environment         | `.env.local` from `.env.example`                                                                                                                                        | none                                                                    |
+| 3 Git                 | initial commit when needed                                                                                                                                              | none                                                                    |
+| 4 GitHub              | push to existing origin, or `gh repo create --private`                                                                                                                  | `github.push`, `github.create`                                          |
+| 5 Sanity              | login check, create or reuse project, dataset, organization, optional read token, CORS origins (localhost + production, with credentials), writes unquoted `.env.local` | `sanity.mode/projectId/dataset/organization/token/cors`, `sanity.login` |
+| 6 Template invariants | runs `verify-template`                                                                                                                                                  | none                                                                    |
+| 7 Optional modules    | table-driven (`MODULES`: id, label, description, dependencies, devDependencies, files)                                                                                  | `modules.<id>`                                                          |
+| 8 Vercel              | `vercel link --yes`, push env vars (localhost URL to development only), optional `vercel --prod --yes`                                                                  | `vercel.link/deploy/scope`                                              |
 
 Failures in remote steps are reported and deferred to a closing to-do list. Push step checks common ancestry first. oxlar replaces step 8 with Cloudflare.
 
@@ -156,10 +156,10 @@ One module, `three`: adds `three`, `@types/three`, and copies `scripts/modules/t
 
 Nothing is deleted from BMT-214A. For oxlar:
 
-| Item | Decision |
-| --- | --- |
-| Next draft-mode routes, `SanityLive`, `defineLive` | Dropped (static output); preview is phase 2 |
-| Storybook and `docs/storybook.md` | Replaced by `/styleguide`; doc not ported |
-| `technical-plan` skill, `3d.md` module, LICENSE, `.gitignore` video rule | Ported |
-| 13 gotchas in `CLAUDE.md` | Only those still true are carried into `AGENTS.md` (env quoting, scaffold wrong directory, `pnpm setup` collision, contrast measured on darkest surface, Sanity CORS, `sanity init` clobbering) |
-| `Showcase` | Content becomes `/styleguide` |
+| Item                                                                     | Decision                                                                                                                                                                                        |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Next draft-mode routes, `SanityLive`, `defineLive`                       | Dropped (static output); preview is phase 2                                                                                                                                                     |
+| Storybook and `docs/storybook.md`                                        | Replaced by `/styleguide`; doc not ported                                                                                                                                                       |
+| `technical-plan` skill, `3d.md` module, LICENSE, `.gitignore` video rule | Ported                                                                                                                                                                                          |
+| 13 gotchas in `CLAUDE.md`                                                | Only those still true are carried into `AGENTS.md` (env quoting, scaffold wrong directory, `pnpm setup` collision, contrast measured on darkest surface, Sanity CORS, `sanity init` clobbering) |
+| `Showcase`                                                               | Content becomes `/styleguide`                                                                                                                                                                   |

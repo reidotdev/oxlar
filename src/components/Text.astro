@@ -1,0 +1,44 @@
+---
+interface Props {
+  as?: "p" | "span" | "div";
+  size?: "xs" | "sm" | "base" | "lg" | "xl";
+  tone?: "default" | "muted";
+  class?: string;
+}
+
+const {
+  as: Tag = "p",
+  size = "base",
+  tone = "default",
+  class: className,
+} = Astro.props;
+---
+
+<Tag class:list={["text", className]} data-size={size} data-tone={tone}>
+  <slot />
+</Tag>
+
+<style>
+  @layer components {
+    .text {
+      &[data-size="xs"] {
+        font-size: var(--text-xs);
+      }
+      &[data-size="sm"] {
+        font-size: var(--text-sm);
+      }
+      &[data-size="base"] {
+        font-size: var(--text-base);
+      }
+      &[data-size="lg"] {
+        font-size: var(--text-lg);
+      }
+      &[data-size="xl"] {
+        font-size: var(--text-xl);
+      }
+      &[data-tone="muted"] {
+        color: var(--muted-foreground);
+      }
+    }
+  }
+</style>

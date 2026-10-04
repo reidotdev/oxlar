@@ -1,0 +1,81 @@
+---
+import type { SiteSettings } from "../lib/site.ts";
+
+interface Props {
+  site: SiteSettings;
+}
+
+const { site } = Astro.props;
+const path = Astro.url.pathname.replace(/\/$/, "") || "/";
+const isCurrent = (href: string) =>
+  href.replace(/\/$/, "") === path ||
+  (href !== "/" && path.startsWith(`${href}/`));
+---
+
+<header class="header">
+  <div class="container bar">
+    <a class="brand" href="/">
+      {site.title}
+    </a>
+    {site.navigation.length > 0 && (
+      <nav aria-label="Primary">
+        <ul class="cluster">
+          {site.navigation.map((item) => (
+            <li>
+              <a
+                href={item.href}
+                aria-current={isCurrent(item.href) ? "page" : undefined}
+              >
+                {item.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    )}
+  </div>
+</header>
+
+<style>
+  @layer components {
+    .header {
+      border-block-end: var(--border-width) solid var(--border);
+    }
+
+    .bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3) var(--space-5);
+      padding-block: var(--space-4);
+    }
+
+    .brand {
+      color: var(--foreground);
+      font-weight: var(--weight-bold);
+      text-decoration: none;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      --cluster-gap: var(--space-5);
+    }
+
+    nav a {
+      color: var(--muted-foreground);
+      text-decoration: none;
+
+      &:hover,
+      &[aria-current="page"] {
+        color: var(--foreground);
+      }
+
+      &[aria-current="page"] {
+        text-decoration: underline;
+        text-underline-offset: 0.35em;
+      }
+    }
+  }
+</style>

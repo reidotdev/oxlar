@@ -1,0 +1,18 @@
+node_modules/
+dist/
+.astro/
+.wrangler/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+.DS_Store
+studio/dist/
+studio/.sanity/
+/test-results/
+/playwright-report/
+/.lighthouseci/
+/perf-report/
+.claude/worktrees/
+# Source media stays out of git; upload to Sanity or object storage.
+/public/video/

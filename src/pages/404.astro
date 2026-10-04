@@ -1,0 +1,36 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Section from "../components/Section.astro";
+import Heading from "../components/Heading.astro";
+import Text from "../components/Text.astro";
+import Link from "../components/Link.astro";
+import { getSiteSettings } from "../lib/site.ts";
+import { buildSeo } from "../lib/seo.ts";
+
+const site = await getSiteSettings();
+const seo = buildSeo(
+  {
+    path: "/404",
+    title: "Page not found",
+    description: "That page does not exist.",
+    noindex: true,
+  },
+  site,
+);
+---
+
+<BaseLayout seo={seo} site={site}>
+  <Section narrow>
+    <div class="stack">
+      <Heading level={1}>Page not found</Heading>
+      <Text tone="muted">
+        The page you asked for does not exist, or it has moved.
+      </Text>
+      <div>
+        <Link variant="button" href="/">
+          Back to the home page
+        </Link>
+      </div>
+    </div>
+  </Section>
+</BaseLayout>

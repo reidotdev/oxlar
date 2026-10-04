@@ -1,0 +1,38 @@
+---
+interface Props {
+  /** Minimum column width before wrapping. Any CSS length token. */
+  min?: "sm" | "md" | "lg";
+  class?: string;
+  as?: "div" | "ul";
+}
+const { min = "md", class: className, as: Tag = "div" } = Astro.props;
+---
+
+<Tag class:list={["grid", className]} data-min={min}>
+  <slot />
+</Tag>
+
+<style>
+  @layer components {
+    .grid {
+      display: grid;
+      gap: var(--space-5);
+      list-style: none;
+      padding: 0;
+      grid-template-columns: repeat(
+        auto-fit,
+        minmax(min(100%, var(--col-min)), 1fr)
+      );
+
+      &[data-min="sm"] {
+        --col-min: 12rem;
+      }
+      &[data-min="md"] {
+        --col-min: 18rem;
+      }
+      &[data-min="lg"] {
+        --col-min: 26rem;
+      }
+    }
+  }
+</style>

@@ -1,0 +1,164 @@
+/* ---------------------------------------------------------------------------
+   DESIGN TOKENS: the swappable layer and the only file that may hold raw
+   colour, px or font-size values (Stylelint enforces this).
+
+   1. PALETTE  raw named values (ported unchanged from BMT-214A).
+   2. SEMANTIC role tokens (--background, --primary, ...). Components use these.
+   3. SCALES   type, space, radius, shadow, z-index, motion, breakpoints.
+
+   Dark mode is ONE mapping built on light-dark():
+     - the OS preference works out of the box (color-scheme: light dark)
+     - <html data-theme="dark|light"> forces a whole-page theme
+     - data-surface="dark|light" scopes a section, and every token flips inside it
+   Re-theme by editing the PALETTE block.
+--------------------------------------------------------------------------- */
+
+:root {
+  /* --- 1. PALETTE ------------------------------------------------------- */
+  --paper: oklch(1 0 0);
+  --ink: oklch(0.16 0 0);
+  /* 0.52 not 0.55: --muted-foreground also renders on --muted and --secondary.
+     Measure contrast against the DARKEST light surface, not white (4.90:1). */
+  --ink-muted: oklch(0.52 0 0);
+  --line: oklch(0.92 0 0);
+  --surface: oklch(0.96 0 0);
+  --surface-strong: oklch(0.97 0 0);
+
+  --dark: oklch(0.16 0 0);
+  --dark-raised: oklch(0.2 0 0);
+  --dark-surface: oklch(0.26 0 0);
+  --dark-muted: oklch(0.24 0 0);
+  --dark-accent: oklch(0.28 0 0);
+  --dark-line: oklch(0.28 0 0);
+  --dark-input: oklch(0.3 0 0);
+  --on-dark: oklch(0.98 0 0);
+  --on-dark-muted: oklch(0.68 0 0);
+
+  --brand: oklch(0.55 0.22 264);
+  --brand-on: oklch(0.99 0 0);
+  --brand-light: oklch(0.7 0.16 264);
+
+  --danger: oklch(0.58 0.24 27);
+  --on-danger: oklch(0.99 0 0);
+
+  --radius: 0.625rem;
+
+  /* --- 2. SEMANTIC ------------------------------------------------------ */
+  color-scheme: light dark;
+
+  --background: light-dark(var(--paper), var(--dark));
+  --foreground: light-dark(var(--ink), var(--on-dark));
+  --card: light-dark(var(--paper), var(--dark-raised));
+  --card-foreground: light-dark(var(--ink), var(--on-dark));
+  --primary: light-dark(var(--brand), var(--brand-light));
+  --primary-foreground: light-dark(var(--brand-on), var(--dark));
+  --secondary: light-dark(var(--surface), var(--dark-surface));
+  --secondary-foreground: light-dark(oklch(0.2 0 0), var(--on-dark));
+  --muted: light-dark(var(--surface-strong), var(--dark-muted));
+  --muted-foreground: light-dark(var(--ink-muted), var(--on-dark-muted));
+  --accent: light-dark(var(--surface), var(--dark-accent));
+  --accent-foreground: light-dark(oklch(0.2 0 0), var(--on-dark));
+  --destructive: var(--danger);
+  --destructive-foreground: var(--on-danger);
+  --border: light-dark(var(--line), var(--dark-line));
+  --input: light-dark(var(--line), var(--dark-input));
+  --ring: light-dark(var(--brand), var(--brand-light));
+  --overlay: oklch(0 0 0 / 0.5);
+
+  /* --- 3. SCALES -------------------------------------------------------- */
+  --font-sans:
+    "Inter Variable", "Inter Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Fluid type scale (clamp between 320px and 1280px viewports). */
+  --text-xs: clamp(0.75rem, 0.73rem + 0.1vw, 0.8125rem);
+  --text-sm: clamp(0.875rem, 0.85rem + 0.12vw, 0.9375rem);
+  --text-base: clamp(1rem, 0.96rem + 0.2vw, 1.0625rem);
+  --text-lg: clamp(1.125rem, 1.05rem + 0.35vw, 1.3125rem);
+  --text-xl: clamp(1.25rem, 1.12rem + 0.65vw, 1.625rem);
+  --text-2xl: clamp(1.5rem, 1.25rem + 1.25vw, 2.25rem);
+  --text-3xl: clamp(1.875rem, 1.4rem + 2.4vw, 3rem);
+  --text-4xl: clamp(2.25rem, 1.5rem + 3.75vw, 3.75rem);
+  --leading-tight: 1.1;
+  --leading-snug: 1.3;
+  --leading-normal: 1.5;
+  --tracking-tight: -0.02em;
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --space-9: 6rem;
+  --space-10: 8rem;
+  --gutter: clamp(1.5rem, 1rem + 2vw, 3rem);
+
+  --measure: 65ch;
+  --band: 72rem;
+  --band-narrow: 48rem;
+
+  --radius-sm: calc(var(--radius) - 0.25rem);
+  --radius-md: calc(var(--radius) - 0.125rem);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 0.25rem);
+  --radius-full: 9999px;
+
+  --border-width: 1px;
+  --ring-width: 2px;
+  --ring-offset: 2px;
+
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.08);
+  --shadow-md: 0 4px 12px oklch(0 0 0 / 0.12);
+  --shadow-lg: 0 12px 32px oklch(0 0 0 / 0.18);
+
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 100;
+  --z-overlay: 500;
+  --z-popover: 600;
+
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 400ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* Breakpoints are container-query sizes: use @container (min-width: ...)
+     with these values. CSS cannot read custom properties inside a query, so
+     the values are repeated in components and listed here as the contract. */
+  --container-sm: 30rem;
+  --container-md: 48rem;
+  --container-lg: 64rem;
+}
+
+:root[data-theme="dark"],
+[data-surface="dark"] {
+  color-scheme: dark;
+}
+
+:root[data-theme="light"],
+[data-surface="light"] {
+  color-scheme: light;
+}
+
+/* A section scope paints its own ground. */
+[data-surface] {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+@media (forced-colors: active) {
+  :root {
+    --ring: Highlight;
+    --border: CanvasText;
+    --input: CanvasText;
+  }
+}

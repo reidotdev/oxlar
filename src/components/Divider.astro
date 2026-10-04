@@ -1,0 +1,31 @@
+---
+interface Props {
+  orientation?: "horizontal" | "vertical";
+}
+const { orientation = "horizontal" } = Astro.props;
+---
+
+<hr
+  class="divider"
+  data-orientation={orientation}
+  aria-orientation={orientation}
+/>
+
+<style>
+  @layer components {
+    .divider {
+      border: 0;
+      background: var(--border);
+
+      &[data-orientation="horizontal"] {
+        block-size: var(--border-width);
+        inline-size: 100%;
+      }
+
+      &[data-orientation="vertical"] {
+        inline-size: var(--border-width);
+        align-self: stretch;
+      }
+    }
+  }
+</style>

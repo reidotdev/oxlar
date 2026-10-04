@@ -1,0 +1,2 @@
+# Redirects: "from to status". Documented in docs/deployment.md.
+# /old-path /new-path 301

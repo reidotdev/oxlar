@@ -1,0 +1,30 @@
+---
+interface Props {
+  href?: string;
+}
+const { href } = Astro.props;
+const Element = href ? "a" : "span";
+---
+
+<Element class="tag" href={href}>
+  <slot />
+</Element>
+
+<style>
+  @layer components {
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: var(--space-1) var(--space-3);
+      border: var(--border-width) solid var(--border);
+      border-radius: var(--radius-md);
+      font-size: var(--text-sm);
+      color: var(--foreground);
+      text-decoration: none;
+
+      &:is(a):hover {
+        background: var(--accent);
+      }
+    }
+  }
+</style>

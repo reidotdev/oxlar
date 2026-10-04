@@ -1,0 +1,11 @@
+---
+/**
+ * Loads the motion registry. Include it on any page that has data-motion
+ * elements (Reveal does so itself). Astro dedupes the script, and a page that
+ * never renders this component ships no motion code at all.
+ */
+---
+
+<script>
+  import "../motion/index.ts";
+</script>

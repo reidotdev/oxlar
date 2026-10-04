@@ -1,0 +1,111 @@
+---
+import Button from "./Button.astro";
+
+interface Props {
+  id: string;
+  title: string;
+  /** Clicking the backdrop or pressing Escape closes the dialog. */
+  dismissable?: boolean;
+}
+
+const { id, title, dismissable = true } = Astro.props;
+---
+
+<dialog
+  id={id}
+  class="dialog"
+  aria-labelledby={`${id}-title`}
+  data-dismissable={dismissable || undefined}
+>
+  <div class="inner">
+    <h2 class="title" id={`${id}-title`}>
+      {title}
+    </h2>
+    <slot />
+    <form method="dialog" class="actions">
+      <slot name="actions">
+        <Button variant="ghost" type="submit">
+          Close
+        </Button>
+      </slot>
+    </form>
+  </div>
+</dialog>
+
+<style>
+  @layer components {
+    .dialog {
+      inline-size: min(28rem, calc(100% - var(--space-5)));
+      padding: var(--space-5);
+      border: var(--border-width) solid var(--border);
+      border-radius: var(--radius-xl);
+      background: var(--card);
+      color: var(--card-foreground);
+      box-shadow: var(--shadow-lg);
+      margin: auto;
+      opacity: 0;
+      transform: scale(0.96);
+      transition:
+        opacity var(--duration-base) var(--ease-out),
+        transform var(--duration-base) var(--ease-out),
+        overlay var(--duration-base) allow-discrete,
+        display var(--duration-base) allow-discrete;
+
+      &[open] {
+        opacity: 1;
+        transform: scale(1);
+
+        @starting-style {
+          opacity: 0;
+          transform: scale(0.96);
+        }
+      }
+
+      &::backdrop {
+        background: var(--overlay);
+        opacity: 0;
+        transition:
+          opacity var(--duration-base) var(--ease-out),
+          overlay var(--duration-base) allow-discrete,
+          display var(--duration-base) allow-discrete;
+      }
+
+      &[open]::backdrop {
+        opacity: 1;
+
+        @starting-style {
+          opacity: 0;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        transition: none;
+
+        &::backdrop {
+          transition: none;
+        }
+      }
+    }
+
+    .inner {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    .title {
+      font-size: var(--text-lg);
+      font-weight: var(--weight-semibold);
+    }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--space-2);
+    }
+  }
+</style>
+
+<script>
+  import "../islands/dialog.ts";
+</script>

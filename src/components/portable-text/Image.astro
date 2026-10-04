@@ -1,0 +1,26 @@
+---
+import SanityImage from "../SanityImage.astro";
+
+const { node } = Astro.props;
+const image = node;
+---
+
+<figure class="figure">
+  <SanityImage image={image} sizes="(min-width: 48rem) 48rem, 100vw" />
+  {image.caption && <figcaption>{image.caption}</figcaption>}
+</figure>
+
+<style>
+  @layer components {
+    .figure {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+
+      & figcaption {
+        font-size: var(--text-sm);
+        color: var(--muted-foreground);
+      }
+    }
+  }
+</style>

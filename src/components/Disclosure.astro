@@ -1,0 +1,59 @@
+---
+interface Props {
+  summary: string;
+  /** Same name on several Disclosures makes them an exclusive accordion. */
+  name?: string;
+  open?: boolean;
+}
+const { summary, name, open = false } = Astro.props;
+---
+
+<details class="disclosure" name={name} open={open}>
+  <summary>{summary}</summary>
+  <div class="content">
+    <slot />
+  </div>
+</details>
+
+<style>
+  @layer components {
+    .disclosure {
+      border-block-end: var(--border-width) solid var(--border);
+
+      & summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-3);
+        padding-block: var(--space-4);
+        font-weight: var(--weight-medium);
+        cursor: pointer;
+        list-style: none;
+
+        &::-webkit-details-marker {
+          display: none;
+        }
+
+        &::after {
+          content: "";
+          flex: none;
+          inline-size: 0.5rem;
+          block-size: 0.5rem;
+          border-inline-end: var(--ring-width) solid currentcolor;
+          border-block-end: var(--ring-width) solid currentcolor;
+          transform: rotate(45deg);
+          transition: transform var(--duration-base) var(--ease-out);
+        }
+      }
+
+      &[open] summary::after {
+        transform: rotate(-135deg);
+      }
+    }
+
+    .content {
+      padding-block-end: var(--space-4);
+      color: var(--muted-foreground);
+    }
+  }
+</style>

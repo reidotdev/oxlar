@@ -1,0 +1,529 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Section from "../components/Section.astro";
+import Heading from "../components/Heading.astro";
+import Text from "../components/Text.astro";
+import Button from "../components/Button.astro";
+import Link from "../components/Link.astro";
+import Badge from "../components/Badge.astro";
+import Tag from "../components/Tag.astro";
+import Card from "../components/Card.astro";
+import Divider from "../components/Divider.astro";
+import Grid from "../components/Grid.astro";
+import Icon from "../components/Icon.astro";
+import TextField from "../components/TextField.astro";
+import TextArea from "../components/TextArea.astro";
+import Select from "../components/Select.astro";
+import Checkbox from "../components/Checkbox.astro";
+import RadioGroup from "../components/RadioGroup.astro";
+import Dialog from "../components/Dialog.astro";
+import Menu from "../components/Menu.astro";
+import Tabs from "../components/Tabs.astro";
+import TabPanel from "../components/TabPanel.astro";
+import Tooltip from "../components/Tooltip.astro";
+import Disclosure from "../components/Disclosure.astro";
+import BackgroundVideo from "../components/BackgroundVideo.astro";
+import Reveal from "../components/Reveal.astro";
+import { getSiteSettings } from "../lib/site.ts";
+import { buildSeo } from "../lib/seo.ts";
+
+const site = await getSiteSettings();
+const seo = buildSeo(
+  {
+    path: "/styleguide",
+    title: "Styleguide",
+    description: "Every component, variant and state.",
+    noindex: true,
+  },
+  site,
+);
+
+const variants = [
+  "primary",
+  "secondary",
+  "outline",
+  "ghost",
+  "destructive",
+] as const;
+const sizes = ["sm", "md", "lg"] as const;
+const swatches = [
+  "background",
+  "foreground",
+  "card",
+  "primary",
+  "primary-foreground",
+  "secondary",
+  "muted",
+  "muted-foreground",
+  "accent",
+  "destructive",
+  "border",
+  "ring",
+];
+const spaces = [1, 2, 3, 4, 5, 6, 7, 8];
+const typeScale = [
+  "xs",
+  "sm",
+  "base",
+  "lg",
+  "xl",
+  "2xl",
+  "3xl",
+  "4xl",
+] as const;
+const options = [
+  { value: "astro", label: "Astro" },
+  { value: "next", label: "Next.js" },
+  { value: "remix", label: "Remix", disabled: true },
+];
+const plans = [
+  { value: "free", label: "Free" },
+  { value: "pro", label: "Pro" },
+  { value: "team", label: "Team", disabled: true },
+];
+---
+
+<BaseLayout seo={seo} site={site}>
+  <Section>
+    <div class="stack">
+      <Heading level={1}>Styleguide</Heading>
+      <Text tone="muted">
+        Every component with every variant and state. Hover, press and focus
+        states are native: tab through the page to see focus rings.
+      </Text>
+    </div>
+  </Section>
+
+  <Section aria-labelledby="sg-type">
+    <div class="stack">
+      <Heading level={2} size="2xl" id="sg-type">
+        Type scale
+      </Heading>
+      {typeScale.map((size) => (
+        <Text
+          as="p"
+          size={
+            size === "2xl" || size === "3xl" || size === "4xl" ? "xl" : size
+          }
+        >{`${size}: The quick brown fox`}</Text>
+      ))}
+      <Heading level={1} size="4xl">
+        Heading 4xl
+      </Heading>
+      <Heading level={2} size="3xl">
+        Heading 3xl
+      </Heading>
+      <Heading level={3} size="2xl">
+        Heading 2xl
+      </Heading>
+      <Heading level={4} size="xl">
+        Heading xl
+      </Heading>
+    </div>
+  </Section>
+
+  <Section aria-labelledby="sg-color">
+    <div class="stack">
+      <Heading level={2} size="2xl" id="sg-color">
+        Colour tokens
+      </Heading>
+      <Grid min="sm" as="ul">
+        {swatches.map((token) => (
+          <li class="swatch-item">
+            <span class="swatch" data-swatch={token} aria-hidden="true"></span>
+            <code>--{token}</code>
+          </li>
+        ))}
+      </Grid>
+    </div>
+  </Section>
+
+  <Section aria-labelledby="sg-space">
+    <div class="stack">
+      <Heading level={2} size="2xl" id="sg-space">
+        Spacing
+      </Heading>
+      <ul class="stack spaces">
+        {spaces.map((n) => (
+          <li class="space-row">
+            <code>--space-{n}</code>
+            <span class="space-bar" data-space={n} aria-hidden="true"></span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </Section>
+
+  <Section aria-labelledby="sg-buttons">
+    <div class="stack">
+      <Heading level={2} size="2xl" id="sg-buttons">
+        Buttons and links
+      </Heading>
+      {sizes.map((size) => (
+        <div class="cluster">
+          {variants.map((v) => (
+            <Button variant={v} size={size}>{`${v} ${size}`}</Button>
+          ))}
+        </div>
+      ))}
+      <div class="cluster">
+        {variants.map((v) => (
+          <Button variant={v} disabled>{`${v} disabled`}</Button>
+        ))}
+        <Button variant="outline" size="icon" aria-label="Notifications">
+          <Icon name="bell" />
+        </Button>
+        <Button href="/">As a link</Button>
+      </div>
+      <div class="cluster">
+        <Link href="/styleguide">Default link</Link>
+        <Link variant="muted" href="/styleguide">
+          Muted link
+        </Link>
+        <Link variant="button" href="/styleguide">
+          Button link
+        </Link>
+        <Link external href="https://astro.build">
+          External <Icon name="arrow-up-right" />
+        </Link>
+      </div>
+    </div>
+  </Section>
+
+  <Section aria-labelledby="sg-display">
+    <div class="stack">
+      <Heading level={2} size="2xl" id="sg-display">
+        Badge, tag, card, divider, grid
+      </Heading>
+      <div class="cluster">
+        <Badge>Neutral</Badge>
+        <Badge tone="brand">Brand</Badge>
+        <Badge tone="danger">Danger</Badge>
+        <Tag>Plain tag</Tag>
+        <Tag href="/blog">Link tag</Tag>
+      </div>
+      <Divider />
+      <Grid min="md">
+        <Card>
+          <Heading level={3} size="lg">
+            Static card
+          </Heading>
+          <Text size="sm" tone="muted">
+            Content in a card.
+          </Text>
+        </Card>
+        <Card interactive>
+          <Heading level={3} size="lg">
+            <a class="card-link" href="/blog">
+              Interactive card
+            </a>
+          </Heading>
+          <Text size="sm" tone="muted">
+            The whole card is the link target.
+          </Text>
+        </Card>
+      </Grid>
+    </div>
+  </Section>
+
+  <Section aria-labelledby="sg-forms">
+    <div class="stack">
+      <Heading level={2} size="2xl" id="sg-forms">
+        Form fields
+      </Heading>
+      <form class="stack form" novalidate>
+        <Grid min="md">
+          <TextField
+            label="Email"
+            name="email"
+            type="email"
+            placeholder="you@example.com"
+            required
+          />
+          <TextField
+            label="With description"
+            name="handle"
+            description="Letters and numbers only."
+          />
+          <TextField
+            label="With error"
+            name="bad"
+            error="Enter a valid value."
+            value="oops"
+          />
+          <TextField
+            label="Disabled"
+            name="off"
+            disabled
+            value="Not editable"
+          />
+          <Select
+            label="Framework"
+            name="framework"
+            options={options}
+            value="astro"
+          />
+          <Select
+            label="With placeholder"
+            name="choice"
+            options={options}
+            placeholder="Select an option"
+          />
+        </Grid>
+        <TextArea label="Message" name="message" description="Plain text." />
+        <Grid min="md">
+          <RadioGroup label="Plan" name="plan" options={plans} value="pro" />
+          <div class="stack check-group">
+            <Checkbox name="updates" checked>
+              Subscribe to updates
+            </Checkbox>
+            <Checkbox name="terms">Accept terms</Checkbox>
+            <Checkbox name="mixed" indeterminate>
+              Indeterminate
+            </Checkbox>
+            <Checkbox name="locked" disabled>
+              Disabled
+            </Checkbox>
+          </div>
+        </Grid>
+        <div>
+          <Button type="submit">Submit</Button>
+        </div>
+      </form>
+    </div>
+  </Section>
+
+  <Section aria-labelledby="sg-overlays">
+    <div class="stack">
+      <Heading level={2} size="2xl" id="sg-overlays">
+        Dialog, menu, tooltip
+      </Heading>
+      <div class="cluster">
+        <Button
+          data-dialog-open="demo-dialog"
+          commandfor="demo-dialog"
+          command="show-modal"
+        >
+          Open dialog
+        </Button>
+        <Dialog id="demo-dialog" title="Dialog title">
+          <Text size="sm" tone="muted">
+            A native dialog: focus is trapped, Escape closes it, and the page
+            behind is inert.
+          </Text>
+          <Button slot="actions" variant="ghost" type="submit">
+            Cancel
+          </Button>
+          <Button slot="actions" type="submit">
+            Confirm
+          </Button>
+        </Dialog>
+        <Menu
+          id="demo-menu"
+          label="Options"
+          items={[
+            { label: "Edit" },
+            { label: "Duplicate" },
+            { label: "Docs", href: "/styleguide" },
+            { label: "Delete", disabled: true },
+          ]}
+        >
+          <Icon name="chevron-down" slot="icon" />
+        </Menu>
+        <Tooltip id="demo-tip" text="Notifications">
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Notifications"
+            aria-describedby="demo-tip"
+          >
+            <Icon name="bell" />
+          </Button>
+        </Tooltip>
+      </div>
+    </div>
+  </Section>
+
+  <Section aria-labelledby="sg-disclosure">
+    <div class="stack">
+      <Heading level={2} size="2xl" id="sg-disclosure">
+        Tabs and disclosure
+      </Heading>
+      <Tabs label="Demo tabs">
+        <TabPanel id="overview" label="Overview">
+          Accessible tabs as a web component, readable without JS.
+        </TabPanel>
+        <TabPanel id="specs" label="Specs">
+          Arrow keys, Home and End move between tabs.
+        </TabPanel>
+        <TabPanel id="reviews" label="Reviews">
+          Server HTML is a stack of labelled panels.
+        </TabPanel>
+      </Tabs>
+      <div>
+        <Disclosure name="faq" summary="Does it need JavaScript?" open>
+          No. This is a native details element.
+        </Disclosure>
+        <Disclosure name="faq" summary="Are these exclusive?">
+          Yes, a shared name makes an accordion.
+        </Disclosure>
+      </div>
+    </div>
+  </Section>
+
+  <Section surface="dark" aria-labelledby="sg-dark">
+    <div class="stack">
+      <Heading level={2} size="2xl" id="sg-dark">
+        Dark surface
+      </Heading>
+      <Text tone="muted">data-surface="dark" flips every token inside.</Text>
+      <div class="cluster">
+        <Button>Primary</Button>
+        <Button variant="secondary">Secondary</Button>
+        <Button variant="outline">Outline</Button>
+      </div>
+      <TextField label="Email" name="dark-email" type="email" />
+    </div>
+  </Section>
+
+  <Section surface="light" aria-labelledby="sg-light">
+    <div class="stack">
+      <Heading level={2} size="2xl" id="sg-light">
+        Light surface
+      </Heading>
+      <div class="cluster">
+        <Button>Primary</Button>
+        <Button variant="outline">Outline</Button>
+      </div>
+    </div>
+  </Section>
+
+  <Section surface="dark" aria-labelledby="sg-media">
+    <BackgroundVideo slot="backdrop" poster="/demo/cover.svg" />
+    <div class="stack">
+      <Heading level={2} size="2xl" id="sg-media">
+        Backdrop slot and motion
+      </Heading>
+      <Text tone="muted">
+        A decorative video sits behind this band (poster only here: the template
+        ships no video file).
+      </Text>
+      <Reveal>
+        <Card>
+          <Text size="sm">
+            This card fades in on scroll (data-motion="reveal").
+          </Text>
+        </Card>
+      </Reveal>
+    </div>
+  </Section>
+</BaseLayout>
+
+<style>
+  @layer components {
+    .spaces {
+      list-style: none;
+      padding: 0;
+      --stack-gap: var(--space-2);
+    }
+
+    .space-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+
+      & code {
+        min-inline-size: 7rem;
+      }
+    }
+
+    .space-bar {
+      block-size: var(--space-3);
+      border-radius: var(--radius-sm);
+      background: var(--primary);
+
+      &[data-space="1"] {
+        inline-size: var(--space-1);
+      }
+      &[data-space="2"] {
+        inline-size: var(--space-2);
+      }
+      &[data-space="3"] {
+        inline-size: var(--space-3);
+      }
+      &[data-space="4"] {
+        inline-size: var(--space-4);
+      }
+      &[data-space="5"] {
+        inline-size: var(--space-5);
+      }
+      &[data-space="6"] {
+        inline-size: var(--space-6);
+      }
+      &[data-space="7"] {
+        inline-size: var(--space-7);
+      }
+      &[data-space="8"] {
+        inline-size: var(--space-8);
+      }
+    }
+
+    .swatch-item {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      font-size: var(--text-sm);
+    }
+
+    .swatch {
+      block-size: 3rem;
+      border: var(--border-width) solid var(--border);
+      border-radius: var(--radius-md);
+
+      &[data-swatch="background"] {
+        background: var(--background);
+      }
+      &[data-swatch="foreground"] {
+        background: var(--foreground);
+      }
+      &[data-swatch="card"] {
+        background: var(--card);
+      }
+      &[data-swatch="primary"] {
+        background: var(--primary);
+      }
+      &[data-swatch="primary-foreground"] {
+        background: var(--primary-foreground);
+      }
+      &[data-swatch="secondary"] {
+        background: var(--secondary);
+      }
+      &[data-swatch="muted"] {
+        background: var(--muted);
+      }
+      &[data-swatch="muted-foreground"] {
+        background: var(--muted-foreground);
+      }
+      &[data-swatch="accent"] {
+        background: var(--accent);
+      }
+      &[data-swatch="destructive"] {
+        background: var(--destructive);
+      }
+      &[data-swatch="border"] {
+        background: var(--border);
+      }
+      &[data-swatch="ring"] {
+        background: var(--ring);
+      }
+    }
+
+    .form {
+      max-inline-size: 48rem;
+    }
+
+    .check-group {
+      --stack-gap: var(--space-3);
+    }
+  }
+</style>

@@ -1,0 +1,28 @@
+---
+import { PortableText } from "astro-portabletext";
+import Prose from "../Prose.astro";
+import Image from "./Image.astro";
+import Callout from "./Callout.astro";
+import Code from "./Code.astro";
+import Underline from "./Underline.astro";
+
+interface Props {
+  value: unknown[] | null | undefined;
+}
+
+const { value } = Astro.props;
+---
+
+<Prose>
+  <PortableText
+    value={(value ?? []) as never}
+    components={{
+      type: { imageWithAlt: Image, callout: Callout, codeBlock: Code },
+      mark: { underline: Underline },
+    }}
+    onMissingComponent={(message: string) => {
+      // An unknown block type is a content-model bug. Fail the build, never render nothing.
+      throw new Error(`[portable-text] ${message}`);
+    }}
+  />
+</Prose>

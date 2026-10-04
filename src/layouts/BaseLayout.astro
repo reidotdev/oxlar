@@ -1,0 +1,80 @@
+---
+import "../styles/global.css";
+import SEO from "../components/SEO.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import type { SeoData } from "../lib/seo.ts";
+import type { SiteSettings } from "../lib/site.ts";
+
+interface Props {
+  seo: SeoData;
+  site: SiteSettings;
+}
+
+const { seo, site } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- The only inline script. Sets html.js before first paint so motion's hidden states can live in CSS. -->
+    <script is:inline>
+      document.documentElement.classList.add("js");
+    </script>
+    <link
+      rel="preload"
+      href="/fonts/inter-latin-wght-normal.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link
+      rel="alternate"
+      type="application/rss+xml"
+      title={site.title}
+      href="/rss.xml"
+    />
+    <meta name="generator" content={Astro.generator} />
+    <SEO seo={seo} siteName={site.title} />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">
+      Skip to content
+    </a>
+    <Header site={site} />
+    <main id="main" tabindex="-1">
+      <slot />
+    </main>
+    <Footer site={site} />
+  </body>
+</html>
+
+<style is:global>
+  @layer base {
+    .skip-link {
+      position: absolute;
+      inset-inline-start: var(--space-3);
+      inset-block-start: var(--space-3);
+      z-index: var(--z-overlay);
+      padding: var(--space-2) var(--space-4);
+      border-radius: var(--radius-md);
+      background: var(--primary);
+      color: var(--primary-foreground);
+      transform: translateY(-200%);
+    }
+
+    .skip-link:focus-visible {
+      transform: none;
+    }
+
+    main:focus {
+      outline: none;
+    }
+  }
+</style>

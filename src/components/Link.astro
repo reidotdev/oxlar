@@ -1,0 +1,82 @@
+---
+import type { HTMLAttributes } from "astro/types";
+
+interface Props extends HTMLAttributes<"a"> {
+  variant?: "default" | "muted" | "button";
+  /** Adds target=_blank and rel=noopener for external links. */
+  external?: boolean;
+}
+
+const {
+  variant = "default",
+  external = false,
+  class: className,
+  ...rest
+} = Astro.props;
+const externalAttrs = external
+  ? { target: "_blank", rel: "noopener noreferrer" }
+  : {};
+---
+
+<a
+  class:list={["link", className]}
+  data-variant={variant}
+  {...externalAttrs}
+  {...rest}
+>
+  <slot />
+</a>
+
+<style>
+  @layer components {
+    .link {
+      cursor: pointer;
+      transition: color var(--duration-fast) var(--ease-out);
+
+      &[data-variant="default"] {
+        color: var(--primary);
+        text-underline-offset: 0.2em;
+        border-radius: var(--radius-sm);
+        text-decoration: none;
+
+        &:hover {
+          text-decoration: underline;
+        }
+      }
+
+      &[data-variant="muted"] {
+        color: var(--muted-foreground);
+        text-decoration: none;
+        border-radius: var(--radius-sm);
+
+        &:hover {
+          color: var(--foreground);
+          text-decoration: underline;
+        }
+      }
+
+      &[data-variant="button"] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        block-size: 2.5rem;
+        padding-inline: var(--space-4);
+        border-radius: var(--radius-lg);
+        background: var(--primary);
+        color: var(--primary-foreground);
+        font-size: var(--text-sm);
+        font-weight: var(--weight-medium);
+        text-decoration: none;
+
+        &:hover {
+          background: color-mix(in oklch, var(--primary) 90%, transparent);
+        }
+      }
+
+      &[aria-disabled="true"] {
+        pointer-events: none;
+        opacity: 0.5;
+      }
+    }
+  }
+</style>

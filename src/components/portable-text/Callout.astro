@@ -1,0 +1,27 @@
+---
+const { node } = Astro.props;
+const { tone = "info", text } = node as {
+  tone?: "info" | "warning";
+  text?: string;
+};
+---
+
+<aside class="callout" data-tone={tone}>
+  <p>{text}</p>
+</aside>
+
+<style>
+  @layer components {
+    .callout {
+      padding: var(--space-4) var(--space-5);
+      border: var(--border-width) solid var(--border);
+      border-inline-start: var(--space-1) solid var(--primary);
+      border-radius: var(--radius-lg);
+      background: var(--muted);
+
+      &[data-tone="warning"] {
+        border-inline-start-color: var(--destructive);
+      }
+    }
+  }
+</style>

@@ -1,0 +1,122 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Section from "../components/Section.astro";
+import Heading from "../components/Heading.astro";
+import Text from "../components/Text.astro";
+import Card from "../components/Card.astro";
+import Grid from "../components/Grid.astro";
+import Link from "../components/Link.astro";
+import Icon from "../components/Icon.astro";
+import Reveal from "../components/Reveal.astro";
+import { getSiteSettings } from "../lib/site.ts";
+import { buildSeo } from "../lib/seo.ts";
+import { sanityFetch } from "../lib/sanity/client.ts";
+import { pagesQuery, postsQuery } from "../lib/sanity/queries.ts";
+import type {
+  PagesQueryResult,
+  PostsQueryResult,
+} from "../lib/sanity/sanity.types.ts";
+import { formatDate } from "../lib/format.ts";
+
+const site = await getSiteSettings();
+const [pages, posts] = await Promise.all([
+  sanityFetch<PagesQueryResult>(pagesQuery),
+  sanityFetch<PostsQueryResult>(postsQuery),
+]);
+const seo = buildSeo(
+  { path: "/", title: site.title, description: site.description },
+  site,
+);
+---
+
+<BaseLayout seo={seo} site={site}>
+  <!-- The hero is the LCP element: plain, visible HTML, never wrapped in Reveal. -->
+  <Section>
+    <div class="stack hero">
+      <Heading level={1}>{site.title}</Heading>
+      <Text size="xl" tone="muted" class="lede">
+        {site.description}
+      </Text>
+      <div class="cluster">
+        {pages[0]?.slug && (
+          <Link variant="button" href={`/${pages[0].slug}`}>
+            {pages[0].title}
+          </Link>
+        )}
+        <Link href="/blog">
+          Read the blog <Icon name="arrow-up-right" />
+        </Link>
+      </div>
+    </div>
+  </Section>
+
+  {posts.length > 0 && (
+    <Reveal as="section" class="container latest">
+      <Heading level={2} size="2xl">
+        Latest posts
+      </Heading>
+      <Grid as="ul" min="md">
+        {posts.slice(0, 3).map((post) => (
+          <Card as="li" interactive>
+            <Heading level={3} size="lg">
+              <a class="card-link" href={`/blog/${post.slug}`}>
+                {post.title}
+              </a>
+            </Heading>
+            {post.excerpt && (
+              <Text size="sm" tone="muted">
+                {post.excerpt}
+              </Text>
+            )}
+            <Text size="xs" tone="muted">
+              <time datetime={post.publishedAt ?? undefined}>
+                {formatDate(post.publishedAt)}
+              </time>
+            </Text>
+          </Card>
+        ))}
+      </Grid>
+    </Reveal>
+  )}
+
+  {pages.length > 0 && (
+    <Reveal as="section" class="container latest">
+      <Heading level={2} size="2xl">
+        Pages
+      </Heading>
+      <ul class="stack page-list">
+        {pages.map((page) => (
+          <li>
+            <a href={`/${page.slug}`}>{page.title}</a>
+            {page.excerpt && <span class="text-muted"> · {page.excerpt}</span>}
+          </li>
+        ))}
+      </ul>
+    </Reveal>
+  )}
+</BaseLayout>
+
+<style>
+  @layer components {
+    .hero {
+      padding-block: var(--space-8);
+    }
+
+    :global(.lede) {
+      max-inline-size: var(--measure);
+    }
+
+    :global(.latest) {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5);
+      margin-block-start: var(--space-8);
+    }
+
+    .page-list {
+      list-style: none;
+      padding: 0;
+      --stack-gap: var(--space-2);
+    }
+  }
+</style>

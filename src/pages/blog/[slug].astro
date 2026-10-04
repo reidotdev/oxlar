@@ -1,0 +1,90 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import Section from "../../components/Section.astro";
+import Heading from "../../components/Heading.astro";
+import Text from "../../components/Text.astro";
+import SanityImage from "../../components/SanityImage.astro";
+import RichText from "../../components/portable-text/RichText.astro";
+import { getSiteSettings } from "../../lib/site.ts";
+import { abs, buildSeo } from "../../lib/seo.ts";
+import { sanityFetch } from "../../lib/sanity/client.ts";
+import { postBySlugQuery, postsQuery } from "../../lib/sanity/queries.ts";
+import type {
+  PostBySlugQueryResult,
+  PostsQueryResult,
+} from "../../lib/sanity/sanity.types.ts";
+import { validateDocument } from "../../lib/sanity/validate.ts";
+import { formatDate } from "../../lib/format.ts";
+
+export async function getStaticPaths() {
+  const posts = await sanityFetch<PostsQueryResult>(postsQuery);
+  return posts.flatMap((p) => (p.slug ? [{ params: { slug: p.slug } }] : []));
+}
+
+const { slug } = Astro.params;
+const [site, post] = await Promise.all([
+  getSiteSettings(),
+  sanityFetch<PostBySlugQueryResult>(postBySlugQuery, { slug }),
+]);
+if (!post) throw new Error(`[sanity] No post found for slug "${slug}"`);
+validateDocument(post);
+
+const path = `/blog/${post.slug}`;
+const seo = buildSeo(
+  {
+    path,
+    title: post.seo?.title ?? post.title,
+    description: post.seo?.description ?? post.excerpt,
+    noindex: post.seo?.noindex,
+    type: "article",
+    publishedAt: post.publishedAt,
+    modifiedAt: post._updatedAt,
+    breadcrumbs: [
+      { name: "Home", path: "/" },
+      { name: "Blog", path: "/blog" },
+      { name: post.title ?? "", path },
+    ],
+    jsonLd: [
+      {
+        "@type": "BlogPosting",
+        headline: post.title,
+        description: post.excerpt ?? undefined,
+        datePublished: post.publishedAt,
+        dateModified: post._updatedAt,
+        mainEntityOfPage: abs(path),
+        author: {
+          "@type":
+            site.entityType === "organization" ? "Organization" : "Person",
+          name: site.entityName,
+        },
+        image: abs(`/og/blog/${post.slug}.png`),
+      },
+    ],
+    ogImage: `/og/blog/${post.slug}.png`,
+  },
+  site,
+);
+---
+
+<BaseLayout seo={seo} site={site}>
+  <Section narrow>
+    <article class="stack">
+      <header class="stack">
+        <Heading level={1}>{post.title}</Heading>
+        <Text size="sm" tone="muted">
+          <time datetime={post.publishedAt ?? undefined}>
+            {formatDate(post.publishedAt)}
+          </time>
+        </Text>
+      </header>
+      {post.image?.asset && (
+        <SanityImage
+          image={post.image}
+          priority
+          sizes="(min-width: 48rem) 48rem, 100vw"
+        />
+      )}
+      <RichText value={post.body} />
+    </article>
+  </Section>
+</BaseLayout>

@@ -1,0 +1,47 @@
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- the visually-hidden technique is defined in px */
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.container {
+  inline-size: 100%;
+  max-inline-size: var(--band);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.container-narrow {
+  max-inline-size: var(--band-narrow);
+}
+
+/* Vertical rhythm between direct children. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--stack-gap, var(--space-5));
+}
+
+/* Wrapping horizontal group. */
+.cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cluster-gap, var(--space-3));
+}
+
+/* Flow: spacing between block siblings inside prose. */
+.flow > * + * {
+  margin-block-start: var(--flow-gap, var(--space-4));
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}

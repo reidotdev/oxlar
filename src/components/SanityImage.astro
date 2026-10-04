@@ -1,0 +1,80 @@
+---
+import {
+  DEFAULT_WIDTHS,
+  imageUrl,
+  type ImageSource,
+} from "../lib/sanity/image.ts";
+
+interface Props {
+  image: ImageSource & {
+    alt?: string | null;
+    asset?: {
+      _id?: string | null;
+      url?: string | null;
+      metadata?: {
+        dimensions?: { width: number | null; height: number | null } | null;
+        lqip?: string | null;
+      } | null;
+    } | null;
+  };
+  /** `sizes` attribute. Describe the rendered width, e.g. "(min-width: 48rem) 48rem, 100vw". */
+  sizes?: string;
+  /** Eager + high priority: use for the LCP image only. */
+  priority?: boolean;
+  alt?: string;
+  class?: string;
+}
+
+const {
+  image,
+  sizes = "100vw",
+  priority = false,
+  alt,
+  class: className,
+} = Astro.props;
+const dims = image.asset?.metadata?.dimensions;
+if (!image.asset || !dims?.width || !dims.height) {
+  throw new Error(
+    "SanityImage: image has no asset dimensions. Query asset->{ _id, url, metadata { dimensions } }.",
+  );
+}
+
+// Dimensions of the CROPPED image, so width/height match what the URL returns.
+const { top = 0, bottom = 0, left = 0, right = 0 } = image.crop ?? {};
+const width = Math.round(dims.width * (1 - left - right));
+const height = Math.round(dims.height * (1 - top - bottom));
+
+const widths = DEFAULT_WIDTHS.filter((w) => w <= width);
+if (!widths.includes(width) && width <= Math.max(...DEFAULT_WIDTHS))
+  widths.push(width);
+if (widths.length === 0) widths.push(width);
+const srcset = widths.map((w) => `${imageUrl(image, w)} ${w}w`).join(", ");
+const src = imageUrl(image, Math.min(width, 1280));
+// LQIP data URIs are deliberately not painted: they need a style attribute, which
+// the strict CSP forbids. The muted token background is the placeholder; explicit
+// width/height already prevent layout shift.
+---
+
+<img
+  class:list={["sanity-image", className]}
+  src={src}
+  srcset={srcset}
+  sizes={sizes}
+  width={width}
+  height={height}
+  alt={alt ?? image.alt ?? ""}
+  loading={priority ? "eager" : "lazy"}
+  fetchpriority={priority ? "high" : undefined}
+  decoding={priority ? "sync" : "async"}
+/>
+
+<style>
+  @layer components {
+    .sanity-image {
+      inline-size: 100%;
+      block-size: auto;
+      border-radius: var(--radius-lg);
+      background-color: var(--muted);
+    }
+  }
+</style>

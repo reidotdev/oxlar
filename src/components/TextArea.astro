@@ -1,0 +1,82 @@
+---
+import type { HTMLAttributes } from "astro/types";
+import FieldShell from "./FieldShell.astro";
+import { fieldIds } from "../lib/field.ts";
+
+interface Props extends Omit<HTMLAttributes<"textarea">, "id"> {
+  label: string;
+  name: string;
+  id?: string;
+  description?: string;
+  error?: string;
+  rows?: number;
+}
+
+const {
+  label,
+  name,
+  id = name,
+  description,
+  error,
+  rows = 4,
+  class: className,
+  required,
+  ...rest
+} = Astro.props;
+const ids = fieldIds({ id, description, error });
+---
+
+<FieldShell
+  id={id}
+  label={label}
+  description={description}
+  error={error}
+  required={Boolean(required)}
+>
+  <textarea
+    class:list={["control", className]}
+    id={id}
+    name={name}
+    rows={rows}
+    required={required}
+    aria-describedby={ids.describedby}
+    aria-invalid={ids.invalid}
+    {...rest}
+  />
+</FieldShell>
+
+<style>
+  @layer components {
+    .control {
+      padding: var(--space-2) var(--space-3);
+      border: var(--border-width) solid var(--input);
+      border-radius: var(--radius-lg);
+      background: var(--background);
+      color: var(--foreground);
+      font-size: var(--text-sm);
+      resize: vertical;
+      transition: border-color var(--duration-fast) var(--ease-out);
+
+      &::placeholder {
+        color: var(--muted-foreground);
+      }
+
+      &:hover {
+        border-color: color-mix(in oklch, var(--ring) 60%, transparent);
+      }
+
+      &:focus-visible {
+        border-color: var(--ring);
+      }
+
+      &[aria-invalid="true"] {
+        border-color: var(--destructive);
+      }
+
+      &:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+    }
+  }
+</style>

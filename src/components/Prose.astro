@@ -1,0 +1,49 @@
+---
+/** Typographic wrapper for rendered Portable Text. */
+---
+
+<div class="prose flow">
+  <slot />
+</div>
+
+<style>
+  @layer components {
+    .prose {
+      max-inline-size: var(--measure);
+
+      & :global(:is(h2, h3, h4)) {
+        margin-block-start: var(--space-7);
+      }
+
+      & :global(h2) {
+        font-size: var(--text-2xl);
+      }
+      & :global(h3) {
+        font-size: var(--text-xl);
+      }
+      & :global(h4) {
+        font-size: var(--text-lg);
+      }
+
+      & :global(:is(ul, ol)) {
+        padding-inline-start: var(--space-5);
+      }
+
+      & :global(li + li) {
+        margin-block-start: var(--space-2);
+      }
+
+      & :global(blockquote) {
+        padding-inline-start: var(--space-4);
+        border-inline-start: var(--space-1) solid var(--border);
+        color: var(--muted-foreground);
+      }
+
+      & :global(code:not(pre code)) {
+        padding: 0.1em 0.35em;
+        border-radius: var(--radius-sm);
+        background: var(--muted);
+      }
+    }
+  }
+</style>

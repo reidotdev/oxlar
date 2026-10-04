@@ -1,0 +1,61 @@
+---
+interface Props {
+  /** Accessible name for the tab list. */
+  label: string;
+}
+const { label } = Astro.props;
+---
+
+<ui-tabs data-label={label}>
+  <slot />
+</ui-tabs>
+
+<style>
+  @layer components {
+    ui-tabs {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    ui-tabs :global([role="tablist"]) {
+      display: inline-flex;
+      inline-size: fit-content;
+      gap: var(--space-1);
+      padding: var(--space-1);
+      border-radius: var(--radius-lg);
+      background: var(--muted);
+    }
+
+    ui-tabs :global([role="tab"]) {
+      padding: var(--space-2) var(--space-3);
+      border: 0;
+      border-radius: var(--radius-md);
+      background: transparent;
+      color: var(--muted-foreground);
+      font-size: var(--text-sm);
+      font-weight: var(--weight-medium);
+      cursor: pointer;
+
+      &:hover {
+        color: var(--foreground);
+      }
+
+      &[aria-selected="true"] {
+        background: var(--background);
+        color: var(--foreground);
+        box-shadow: var(--shadow-sm);
+      }
+    }
+
+    /* Without JS every panel shows, headed by its own label. Once upgraded the
+       tab list takes over and the headings go. */
+    ui-tabs:defined :global(.tab-panel-heading) {
+      display: none;
+    }
+  }
+</style>
+
+<script>
+  import "../islands/tabs.ts";
+</script>

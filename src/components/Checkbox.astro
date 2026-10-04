@@ -1,0 +1,107 @@
+---
+import type { HTMLAttributes } from "astro/types";
+
+interface Props extends Omit<HTMLAttributes<"input">, "type" | "id"> {
+  name: string;
+  id?: string;
+  /** Visual indeterminate state. Applied by script; cleared when the user toggles it. */
+  indeterminate?: boolean;
+}
+
+const {
+  name,
+  id = name,
+  indeterminate = false,
+  class: className,
+  ...rest
+} = Astro.props;
+---
+
+<label class:list={["checkbox", className]} for={id}>
+  <input
+    type="checkbox"
+    id={id}
+    name={name}
+    data-indeterminate={indeterminate || undefined}
+    {...rest}
+  />
+  <span>
+    <slot />
+  </span>
+</label>
+
+<style>
+  @layer components {
+    .checkbox {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: var(--text-sm);
+      cursor: pointer;
+
+      &:has(:disabled) {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+    }
+
+    input {
+      appearance: none;
+      display: grid;
+      place-content: center;
+      flex: none;
+      inline-size: 1.25rem;
+      block-size: 1.25rem;
+      margin: 0;
+      border: var(--border-width) solid var(--input);
+      border-radius: var(--radius-sm);
+      background: var(--background);
+      cursor: inherit;
+      transition: background-color var(--duration-fast) var(--ease-out);
+
+      &::before {
+        content: "";
+        inline-size: 0.75rem;
+        block-size: 0.75rem;
+        background: var(--primary-foreground);
+        clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0, 43% 62%);
+        transform: scale(0);
+        transition: transform var(--duration-fast) var(--ease-out);
+      }
+
+      &:hover {
+        border-color: color-mix(in oklch, var(--ring) 60%, transparent);
+      }
+
+      &:checked,
+      &:indeterminate {
+        background: var(--primary);
+        border-color: var(--primary);
+      }
+
+      &:checked::before {
+        transform: scale(1);
+      }
+
+      &:indeterminate::before {
+        clip-path: polygon(0 40%, 100% 40%, 100% 60%, 0 60%);
+        transform: scale(1);
+      }
+
+      &:focus-visible {
+        outline: var(--ring-width) solid var(--ring);
+        outline-offset: var(--ring-offset);
+      }
+    }
+
+    @media (forced-colors: active) {
+      input:checked::before {
+        background: CanvasText;
+      }
+    }
+  }
+</style>
+
+<script>
+  import "../islands/field-validation.ts";
+</script>

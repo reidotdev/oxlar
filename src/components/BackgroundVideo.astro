@@ -1,0 +1,41 @@
+---
+interface Props {
+  /** Omit to render the poster only (useful before the video is uploaded). */
+  src?: string;
+  /** Still frame shown until the video paints, and kept for reduced-motion visitors. */
+  poster?: string;
+}
+const { src, poster } = Astro.props;
+---
+
+<!--
+  Decorative. muted + playsinline permit autoplay. There is deliberately no
+  autoplay attribute: the script starts playback unless the visitor prefers
+  reduced motion, so a reduced-motion visitor without JS never gets motion.
+-->
+<video
+  class="bg-video"
+  src={src}
+  poster={poster}
+  muted
+  playsinline
+  loop
+  preload="metadata"
+  aria-hidden="true"
+  tabindex="-1"
+  data-bg-video
+></video>
+
+<style>
+  @layer components {
+    .bg-video {
+      inline-size: 100%;
+      block-size: 100%;
+      object-fit: cover;
+    }
+  }
+</style>
+
+<script>
+  import "../islands/background-video.ts";
+</script>

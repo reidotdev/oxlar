@@ -1,0 +1,57 @@
+---
+import type { SiteSettings } from "../lib/site.ts";
+
+interface Props {
+  site: SiteSettings;
+}
+
+const { site } = Astro.props;
+---
+
+<footer class="footer">
+  <div class="container bar">
+    <p class="text-muted">{site.footerText ?? site.title}</p>
+    {site.social.length > 0 && (
+      <ul class="cluster">
+        {site.social.map((s) => (
+          <li>
+            <a href={s.url} rel="me noopener noreferrer">
+              {s.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    )}
+  </div>
+</footer>
+
+<style>
+  @layer components {
+    .footer {
+      margin-block-start: var(--space-9);
+      border-block-start: var(--border-width) solid var(--border);
+    }
+
+    .bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: var(--space-3);
+      padding-block: var(--space-6);
+      font-size: var(--text-sm);
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    a {
+      color: var(--muted-foreground);
+    }
+
+    a:hover {
+      color: var(--foreground);
+    }
+  }
+</style>

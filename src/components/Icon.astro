@@ -1,0 +1,40 @@
+---
+interface Props {
+  /** File name in src/icons without the extension. */
+  name: string;
+  /** Accessible name. Omit for decorative icons (hidden from assistive tech). */
+  label?: string;
+  class?: string;
+}
+
+const icons = import.meta.glob<string>("../icons/*.svg", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+});
+const { name, label, class: className } = Astro.props;
+const raw = icons[`../icons/${name}.svg`];
+if (!raw) throw new Error(`Icon "${name}" not found in src/icons/`);
+const svg = raw.replace(
+  "<svg ",
+  `<svg class="icon" ${label ? `role="img" aria-label="${label}"` : 'aria-hidden="true" focusable="false"'} `,
+);
+---
+
+<span class:list={["icon-wrap", className]} set:html={svg} />
+
+<style>
+  @layer components {
+    .icon-wrap {
+      display: inline-flex;
+      flex: none;
+      inline-size: 1.15em;
+      block-size: 1.15em;
+    }
+
+    .icon-wrap :global(.icon) {
+      inline-size: 100%;
+      block-size: 100%;
+    }
+  }
+</style>

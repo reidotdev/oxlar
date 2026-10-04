@@ -1,0 +1,61 @@
+---
+interface Props {
+  /** `dark` / `light` flip every semantic token inside via data-surface. */
+  surface?: "default" | "dark" | "light";
+  /** Narrow content band (reading width). */
+  narrow?: boolean;
+  class?: string;
+  id?: string;
+  "aria-labelledby"?: string;
+}
+
+const {
+  surface = "default",
+  narrow = false,
+  class: className,
+  ...rest
+} = Astro.props;
+const hasBackdrop = Astro.slots.has("backdrop");
+---
+
+<section
+  class:list={["section", className]}
+  data-surface={surface === "default" ? undefined : surface}
+  data-backdrop={hasBackdrop || undefined}
+  {...rest}
+>
+  {hasBackdrop && (
+    <div class="backdrop" aria-hidden="true">
+      <slot name="backdrop" />
+    </div>
+  )}
+  <div class:list={["container", { "container-narrow": narrow }, "band"]}>
+    <slot />
+  </div>
+</section>
+
+<style>
+  @layer components {
+    .section {
+      inline-size: 100%;
+      padding-block: var(--space-8);
+
+      &[data-backdrop] {
+        position: relative;
+        overflow: hidden;
+      }
+    }
+
+    /* Decorative layer behind the band; the section keeps its token background. */
+    .backdrop {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    [data-backdrop] > .band {
+      position: relative;
+      z-index: var(--z-raised);
+    }
+  }
+</style>

@@ -1,0 +1,63 @@
+---
+interface Props {
+  /** Id the trigger inside the slot must reference with aria-describedby. */
+  id: string;
+  text: string;
+}
+const { id, text } = Astro.props;
+---
+
+<span class="tooltip" data-tooltip>
+  <slot />
+  <span role="tooltip" id={id}>
+    {text}
+  </span>
+</span>
+
+<style>
+  @layer components {
+    .tooltip {
+      position: relative;
+      display: inline-flex;
+    }
+
+    [role="tooltip"] {
+      position: absolute;
+      inset-block-end: calc(100% + var(--space-2));
+      inset-inline-start: 50%;
+      translate: -50% 0;
+      z-index: var(--z-popover);
+      inline-size: max-content;
+      max-inline-size: 16rem;
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius-md);
+      background: var(--foreground);
+      color: var(--background);
+      font-size: var(--text-xs);
+      visibility: hidden;
+      opacity: 0;
+      transition:
+        opacity var(--duration-fast) var(--ease-out),
+        visibility var(--duration-fast);
+    }
+
+    /* The tooltip itself stays hoverable (WCAG 1.4.13). The padding bridge
+       below keeps the pointer from leaving the wrapper while crossing the gap. */
+    .tooltip:is(:hover, :focus-within):not([data-dismissed]) [role="tooltip"] {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    [role="tooltip"]::after {
+      content: "";
+      position: absolute;
+      inset-inline: 0;
+      inset-block-start: 100%;
+      block-size: var(--space-2);
+    }
+  }
+</style>
+
+<script>
+  import "../islands/tooltip.ts";
+</script>

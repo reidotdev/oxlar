@@ -1,0 +1,29 @@
+---
+interface Props {
+  id: string;
+  label: string;
+}
+const { id, label } = Astro.props;
+---
+
+<section id={id} class="tab-panel" data-tab-panel data-label={label}>
+  <h3 class="tab-panel-heading">{label}</h3>
+  <slot />
+</section>
+
+<style>
+  @layer components {
+    .tab-panel {
+      font-size: var(--text-sm);
+
+      &[hidden] {
+        display: none;
+      }
+    }
+
+    .tab-panel-heading {
+      margin-block-end: var(--space-2);
+      font-size: var(--text-base);
+    }
+  }
+</style>
