@@ -794,7 +794,8 @@ async function main() {
       "  Build and deploy to Cloudflare Workers now?",
     );
     const who = run("pnpm", ["exec", "wrangler", "whoami"], { capture: true });
-    const cmd = `pnpm exec wrangler login && PUBLIC_SITE_URL=${siteUrl || "<url>"} pnpm build && pnpm cf:deploy`;
+    const cmd =
+      "pnpm exec wrangler login && pnpm build && pnpm cf:deploy   # reads PUBLIC_SITE_URL from .env";
     if (
       deploy === "yes" &&
       who.ok &&
@@ -815,6 +816,14 @@ async function main() {
         record("hosting", false, "deploy failed");
       else record("hosting", true, "deployed");
     } else if (deploy !== "no") {
+      if (!siteUrl) {
+        defer(
+          "Set PUBLIC_SITE_URL in .env before the first build",
+          "Any https URL works for the first deploy (e.g. https://" +
+            name +
+            ".workers.dev). wrangler prints the real *.workers.dev URL; put it in .env, then rebuild and redeploy.",
+        );
+      }
       defer("Deploy to Cloudflare Workers (creates the Worker)", cmd);
       record("hosting", false, "deferred");
     }
@@ -855,7 +864,7 @@ function report() {
     );
   if (todos.length) {
     console.log(
-      `\n${c.b("Still to do")} ${c.dim("(commands are exact; copy them)")}`,
+      `\n${c.b("Still to do")} ${c.dim("(copy the commands; replace any <placeholder> first, the shell treats <...> as redirection)")}`,
     );
     todos.forEach((t, i) =>
       console.log(`  ${i + 1}. ${t.what}\n     ${c.dim(t.how)}`),
