@@ -410,9 +410,28 @@ async function optionalModules(n: number) {
       copyFileSync(f.from, f.to);
     }
     mod.patch?.();
+    formatChanged();
     record(`module ${mod.id}`, ok);
     console.log(c.green(`  ${mod.id} added`));
   }
+}
+
+/**
+ * Module patches and other edits rewrite files without Prettier's layout, and
+ * `pnpm lint` (CI and the Cloudflare build) fails on that. Format every file
+ * git reports as changed or new; unknown types are skipped.
+ */
+function formatChanged() {
+  const files = run("git", ["status", "--porcelain", "--untracked-files=all"], {
+    capture: true,
+  })
+    .stdout.split("\n")
+    .map((l) => l.slice(3).trim())
+    .filter((f) => f && !f.includes(" -> ") && existsSync(f));
+  if (files.length)
+    run("pnpm", ["exec", "prettier", "--write", "--ignore-unknown", ...files], {
+      capture: true,
+    });
 }
 
 // --- Sanity -----------------------------------------------------------------
@@ -964,6 +983,7 @@ async function deployStep(n: number, ctx: DeployContext) {
  * template's wrangler.jsonc: the wrong Worker name and no domain route.
  */
 async function pushScaffoldChanges(name: string) {
+  formatChanged();
   const status = run("git", ["status", "--porcelain"], { capture: true });
   const changed = status.stdout.trim();
   if (!status.ok || !changed) return;
