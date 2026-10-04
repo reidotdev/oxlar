@@ -15,7 +15,7 @@ There are two ways to wire it. `pnpm scaffold` sets up either (on a project that
 
 Use one route per site; both at once deploy twice. `deploy.yml` deploys whenever the repository has the `PUBLIC_SITE_URL` variable, so the Workers Builds route leaves it unset (the scaffold offers to delete it).
 
-Latency from clicking Publish to the change being live, measured on the GitHub Actions route: **about 1 minute, plus queue time** (the deploy job ran 1m6s to 1m9s). Webhook delivery takes seconds.
+Latency from clicking Publish to the change being live, measured on the GitHub Actions route: **about 1 minute, plus queue time** (the deploy job ran 1m6s to 1m9s). Webhook delivery takes seconds. A Workers Build runs the same checks and build; its time is shown per build in the Worker's build history.
 
 ## Host the Studio
 
@@ -71,7 +71,14 @@ To do it by hand instead: connect the Worker in the dashboard (Settings, Builds)
 
 Publish an edit in the Studio, then watch the Worker's build history in the dashboard, where the trigger shows the hook name. Each build has its log.
 
-This route is new: the steps above follow Cloudflare's Builds API reference and were tested against mocked APIs. Confirm the first real publish end to end before relying on it, and record the measured latency here.
+Verified end to end on a live site (custom domain, react-islands module): the scaffold set up the trigger, the variables, the deploy hook and the webhook through the real APIs; a Publish in the hosted Studio started a Workers Build (listed in the Worker's version history as `sanity-publish - deploy hook`) and the change went live; a push to `main` built and deployed as well.
+
+What a build looks like in the dashboard:
+
+- **From a Publish**: the version is labelled with the hook name, and the author is the Cloudflare account owner, since a hook has no Git author.
+- **From a push**: the version shows the commit.
+
+Two bugs that first run found are fixed in the scaffold: Sanity rejects a webhook without a projection string, and a module's edits must be formatted before they are committed, or `pnpm lint` fails the build.
 
 ## Alternative: GitHub Actions
 
