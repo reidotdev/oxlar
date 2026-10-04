@@ -29,7 +29,7 @@ PUBLIC_SITE_URL=https://example.com pnpm build
 pnpm cf:deploy
 ```
 
-`pnpm scaffold` can do this and prints the exact commands for what it skips. Rename the Worker in `wrangler.jsonc` (`name`) per project. Add a custom domain in the Cloudflare dashboard (Workers, Settings, Domains) or with a `routes` entry.
+`pnpm scaffold` can do this and prints the exact commands for what it skips. Rename the Worker in `wrangler.jsonc` (`name`) per project. Add a custom domain in the Cloudflare dashboard (Workers, Settings, Domains) or with a `routes` entry (`"routes": [{ "pattern": "<your-domain>", "custom_domain": true }]`). For CI, an API token from the "Edit Cloudflare Workers" template deployed both the Worker and such a custom-domain route in our test, with no extra zone or DNS permission (see `docs/publishing.md`).
 
 ### CI deploys
 

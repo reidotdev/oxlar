@@ -79,12 +79,17 @@ None on the two gated metrics. Things that got worse or were given up, and why:
 
 ---
 
+oxlar (`pnpm perf` runs Lighthouse on both gated pages):
+
 ```bash
-# oxlar
 pnpm install --frozen-lockfile && PUBLIC_SITE_URL=https://example.com pnpm build
 pnpm perf:size
-CHROME_PATH=/path/to/chrome pnpm perf          # Lighthouse, both gated pages
-# BMT-214A
+CHROME_PATH=/path/to/chrome pnpm perf
+```
+
+BMT-214A:
+
+```bash
 git clone https://github.com/reidotdev/BMT-214A && cd BMT-214A
 pnpm install --frozen-lockfile && NEXT_PUBLIC_SITE_URL=http://localhost:3100 pnpm exec next build
 pnpm exec next start -p 3100
