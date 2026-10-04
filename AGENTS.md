@@ -34,23 +34,24 @@ Pinned versions live in `package.json` (exact, no `^`). Key ones: astro 6.4.8, g
 
 ## Commands
 
-| Task               | Command                                                                |
-| ------------------ | ---------------------------------------------------------------------- |
-| Dev server         | `pnpm dev` (http://localhost:4321)                                     |
-| Build              | `PUBLIC_SITE_URL=https://example.com pnpm build`                       |
-| Preview the build  | `pnpm preview`                                                         |
-| Typecheck          | `pnpm typecheck` (`astro check` + `tsc --noEmit`)                      |
-| Lint               | `pnpm lint` (ESLint + Prettier check + Stylelint)                      |
-| Format             | `pnpm format`                                                          |
-| Tests              | `pnpm test` (Playwright: keyboard, axe, no-JS, motion, SEO, vitals)    |
-| Invariants         | `pnpm verify:template`                                                 |
-| Bundle budgets     | `pnpm perf:size` (after a build)                                       |
-| Lighthouse budgets | `pnpm perf` (after a build; needs Chrome: set `CHROME_PATH`)           |
-| Sanity types       | `pnpm sanity:types` (extracts the schema and regenerates types)        |
-| Studio (local)     | `pnpm --filter oxlar-studio dev`                                       |
-| Studio (deploy)    | `pnpm --filter oxlar-studio deploy`                                    |
-| Deploy the site    | `pnpm cf:deploy` (needs `CLOUDFLARE_API_TOKEN`; CI normally does this) |
-| New project        | `pnpm scaffold` (or `--config scaffold.config.json --non-interactive`) |
+| Task               | Command                                                                    |
+| ------------------ | -------------------------------------------------------------------------- |
+| Dev server         | `pnpm dev` (http://localhost:4321)                                         |
+| Build              | `PUBLIC_SITE_URL=https://example.com pnpm build`                           |
+| Preview the build  | `pnpm preview`                                                             |
+| Typecheck          | `pnpm typecheck` (`astro check` + `tsc --noEmit`)                          |
+| Lint               | `pnpm lint` (ESLint + Prettier check + Stylelint)                          |
+| Format             | `pnpm format`                                                              |
+| Tests              | `pnpm test` (Playwright: keyboard, axe, no-JS, motion, SEO, vitals)        |
+| Invariants         | `pnpm verify:template`                                                     |
+| Bundle budgets     | `pnpm perf:size` (after a build)                                           |
+| Lighthouse budgets | `pnpm perf` (after a build; needs Chrome: set `CHROME_PATH`)               |
+| Sanity types       | `pnpm sanity:types` (extracts the schema and regenerates types)            |
+| Studio (local)     | `pnpm --filter oxlar-studio dev`                                           |
+| Studio (deploy)    | `pnpm --filter oxlar-studio deploy`                                        |
+| Deploy the site    | `pnpm cf:deploy` (Workers Builds or CI normally does this)                 |
+| New project        | `pnpm scaffold` (or `--config scaffold.config.json --non-interactive`)     |
+| Deploy on publish  | `node scripts/scaffold.ts --deploy-only` (Workers Builds + Sanity webhook) |
 
 Use `pnpm run <name>` when in doubt: `pnpm <name>` prefers pnpm's own built-in command of the same name. `verify:template` fails if a script name collides with one (`deploy` did, hence `cf:deploy`).
 
@@ -159,4 +160,5 @@ Schema in `studio/schemaTypes/`, register it, add the query to `queries.ts`, run
 7. **Strict CSP.** Astro hashes inline scripts and styles into a `<meta>` CSP; style attributes are not covered, hence no inline `style=`. Third-party libraries that emit inline styles (Shiki, the Portable Text underline mark) are replaced or avoided.
 8. **Reduced motion in tests.** Axe sampling a mid-fade reveal reports a real but transient contrast failure. Axe tests emulate reduced motion.
 9. **The Studio does not see the root `.env`.** It is bundled for the browser, and Sanity exposes only `SANITY_STUDIO_*` variables from `studio/.env`. `pnpm scaffold` writes both files. A Studio showing a "placeholder" project means `studio/.env` is missing.
-10. **The Astro docs MCP URL** in `.mcp.json` could not be verified from the build environment (egress blocked). Confirm it on first use.
+10. **Two deploy routes at once deploy twice.** Workers Builds (default) and `deploy.yml` both deploy on push. `deploy.yml` only runs while the repository has the `PUBLIC_SITE_URL` variable, so a Workers Builds site leaves it unset. See `docs/publishing.md`.
+11. **The Astro docs MCP URL** in `.mcp.json` could not be verified from the build environment (egress blocked). Confirm it on first use.

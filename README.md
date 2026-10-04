@@ -14,10 +14,9 @@ A page with no animation and no widget ships **0 KB of JavaScript**. See `docs/c
 
 ## Start a project
 
-This is a **GitHub template repo**. Generate a new site from it (fresh history, its own `origin`), then run the setup:
+This is a **GitHub template repo**. Generate a new site from it (fresh history, its own `origin`), then run the setup. The first command creates a new private repo from the template and clones it:
 
 ```bash
-# creates a new PRIVATE repo from the template and clones it
 gh repo create my-site --template reidotdev/oxlar --private --clone
 cd my-site && pnpm install && pnpm scaffold
 ```
@@ -32,16 +31,16 @@ The site builds and runs with no credentials: without `SANITY_PROJECT_ID` it ren
 
 ## Everyday commands
 
-```bash
-pnpm dev                 # http://localhost:4321
-pnpm build               # needs PUBLIC_SITE_URL
-pnpm typecheck && pnpm lint && pnpm verify:template
-pnpm test                # Playwright: keyboard, axe (light + dark), no-JS, motion, SEO, vitals
-pnpm perf:size           # JS and CSS per route, budgets
-pnpm perf                # Lighthouse mobile budgets (set CHROME_PATH)
-pnpm sanity:types        # after editing a schema or a query
-pnpm --filter oxlar-studio dev
-```
+| Command                                               | What it does                                                           |
+| ----------------------------------------------------- | ---------------------------------------------------------------------- |
+| `pnpm dev`                                            | Dev server at http://localhost:4321                                    |
+| `pnpm build`                                          | Production build (needs `PUBLIC_SITE_URL`)                             |
+| `pnpm typecheck && pnpm lint && pnpm verify:template` | The static checks                                                      |
+| `pnpm test`                                           | Playwright: keyboard, axe (light and dark), no-JS, motion, SEO, vitals |
+| `pnpm perf:size`                                      | JS and CSS per route, against the budgets                              |
+| `pnpm perf`                                           | Lighthouse mobile budgets (set `CHROME_PATH`)                          |
+| `pnpm sanity:types`                                   | After editing a schema or a query                                      |
+| `pnpm --filter oxlar-studio dev`                      | The Studio, locally                                                    |
 
 `/styleguide` shows every component, variant and state (noindex, excluded from the sitemap; set `PUBLIC_STYLEGUIDE=false` to leave it out of production).
 
@@ -57,9 +56,11 @@ pnpm --filter oxlar-studio dev
 | `docs/comparison.md`          | Lighthouse, JS and CSS bytes and build time vs BMT-214A                     |
 | `docs/migration-inventory.md` | What BMT-214A contained and how each piece was ported                       |
 
-## GitHub Actions: secrets and variables
+## Deploying: Workers Builds or GitHub Actions
 
-Set these as **repository** variables and secrets (Settings, Secrets and variables, Actions). The deploy job is skipped until `PUBLIC_SITE_URL` exists:
+By default Cloudflare Workers Builds deploys on push, and a Sanity webhook calls its deploy hook on Publish. The scaffold sets it up (`node scripts/scaffold.ts --deploy-only` for an existing project) and nothing goes into GitHub. It needs a one-time setup per Cloudflare account, described in `docs/publishing.md`.
+
+The alternative is `deploy.yml` on GitHub Actions. It needs these **repository** variables and secrets (Settings, Secrets and variables, Actions), and the deploy job is skipped until `PUBLIC_SITE_URL` exists, so leave that unset on a Workers Builds site:
 
 | Kind     | Name                                      | Used by                             |
 | -------- | ----------------------------------------- | ----------------------------------- |
@@ -67,8 +68,10 @@ Set these as **repository** variables and secrets (Settings, Secrets and variabl
 | variable | `SANITY_PROJECT_ID`, `SANITY_DATASET`     | build                               |
 | variable | `SANITY_API_VERSION`, `PUBLIC_STYLEGUIDE` | build (optional)                    |
 | secret   | `SANITY_READ_TOKEN`                       | build, private datasets only        |
-| secret   | `CLOUDFLARE_API_TOKEN`                    | deploy (Workers Scripts: Edit)      |
+| secret   | `CLOUDFLARE_API_TOKEN`                    | deploy ("Edit Cloudflare Workers")  |
 | secret   | `CLOUDFLARE_ACCOUNT_ID`                   | deploy                              |
+
+Set secrets with `gh secret set NAME` and paste the value at the prompt; never `--body "<secret>"`, which leaves the value in your shell history. `docs/publishing.md` has the commands, the token permissions and the webhook setup.
 
 `ci.yml` runs on every pull request (invariants, typecheck, lint, build, bundle budgets, Playwright, Lighthouse). `deploy.yml` runs on push to `main`, on `repository_dispatch` type `sanity-publish`, and manually. No secret is committed; `.env.example` holds placeholders only.
 

@@ -4,14 +4,17 @@
  *   pnpm scaffold
  *
  * Walks through: project details, install, env, git, GitHub, Sanity (project,
- * dataset, CORS, Studio deploy, webhook instructions), optional modules,
- * hosting (Cloudflare Workers, or statichost.eu), then types, a first build and
- * the template invariants. Every remote or irreversible step asks first. A
+ * dataset, CORS, Studio deploy), optional modules, hosting (Cloudflare Workers,
+ * or statichost.eu), deploy on push and on Publish (Workers Builds, a deploy
+ * hook and the Sanity webhook), then types, a first build and the template
+ * invariants. Every remote or irreversible step asks first. A
  * missing CLI or a failed remote command is reported and deferred to a closing
  * to-do list; it never ends the run.
  *
  *   node scripts/scaffold.ts --modules-only
  *     only the optional-modules step, for a project that skipped one.
+ *   node scripts/scaffold.ts --deploy-only
+ *     only the deploy-on-publish step, for a project that is already set up.
  *   node scripts/scaffold.ts --config scaffold.config.json --non-interactive
  *     every answer from a JSON file, never reads stdin (phone, web session, CI).
  *
@@ -29,6 +32,7 @@ import {
 import { dirname, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
+import { Writable } from "node:stream";
 
 const root = resolve(import.meta.dirname, "..");
 process.chdir(root);
@@ -36,6 +40,7 @@ process.chdir(root);
 const ARGS = process.argv.slice(2);
 const NON_INTERACTIVE = ARGS.includes("--non-interactive");
 const MODULES_ONLY = ARGS.includes("--modules-only");
+const DEPLOY_ONLY = ARGS.includes("--deploy-only");
 
 const c = {
   b: (s: string) => `\x1b[1m${s}\x1b[0m`,
@@ -86,6 +91,31 @@ async function ask(key: string, label: string, fallback = ""): Promise<string> {
     await question(`${label}${fallback ? c.dim(` [${fallback}]`) : ""}: `)
   ).trim();
   return answer || fallback;
+}
+
+/**
+ * A token typed at a prompt that does not echo it. Never read from the config
+ * file and never written anywhere: it lives in memory for this run only.
+ */
+async function askSecret(envKey: string, label: string): Promise<string> {
+  const fromEnv = process.env[envKey]?.trim();
+  if (fromEnv) {
+    console.log(c.dim(`  using ${envKey} from the environment`));
+    return fromEnv;
+  }
+  if (NON_INTERACTIVE || !stdin.isTTY) return "";
+  rl?.close();
+  rl = undefined;
+  stdout.write(`${label}${c.dim(" (input hidden, Enter to skip)")}: `);
+  const muted = createInterface({
+    input: stdin,
+    output: new Writable({ write: (_chunk, _enc, done) => done() }),
+    terminal: true,
+  });
+  const answer = await muted.question("");
+  muted.close();
+  stdout.write("\n");
+  return answer.trim();
 }
 
 type Decision = "yes" | "no" | "later";
@@ -177,7 +207,7 @@ const bareUrl = (u: string) =>
     .replace(/\/$/, "");
 
 /**
- * A site URL without a scheme ("test.rei.dev") makes Astro fail with "Invalid
+ * A site URL without a scheme ("www.example.com") makes Astro fail with "Invalid
  * URL", so add https:// for anything that is not localhost. Returns what to use
  * and a note to show the user when it was changed.
  */
@@ -637,13 +667,599 @@ async function sanityStep(
     else record("studio deploy", true, `https://${host}.sanity.studio`);
   } else if (deploy === "later") defer("Deploy the Studio", deployCmd);
 
-  // `sanity hooks create` is interactive only, so the webhook is always printed.
-  defer(
-    "Create the publish webhook (Sanity Manage, API, Webhooks, or `sanity hooks create`)",
-    `URL https://api.github.com/repos/<owner>/<repo>/dispatches  |  filter: _type in ["page","post","siteSettings"] && !(_id in path("drafts.**"))  |  projection: { "event_type": "sanity-publish", "client_payload": { "type": _type, "slug": slug.current } }  |  header Authorization: Bearer <GitHub token with Contents: write>   -- full steps: docs/publishing.md`,
-  );
   void siteUrl;
   return projectId;
+}
+
+// --- Deploy on push and on Publish -----------------------------------------
+//
+// Default: Cloudflare Workers Builds. Cloudflare builds from the GitHub repo on
+// every push to main, and a deploy hook (a secret URL) starts the same build
+// when the Sanity webhook calls it. No GitHub secrets, no GitHub token, nothing
+// stored in the repo. GitHub Actions (deploy.yml) stays as the alternative.
+
+const PUBLISH_FILTER = `_type in ["page", "post", "siteSettings"] && !(_id in path("drafts.**"))`;
+const HOOK_NAME = "sanity-publish";
+const WEBHOOK_NAME = "Rebuild site";
+// The same checks deploy.yml runs before it deploys.
+const BUILD_COMMAND =
+  "pnpm run typecheck && pnpm run lint && pnpm run build && pnpm run perf:size";
+const DEPLOY_COMMAND = "pnpm exec wrangler deploy";
+
+interface CfResponse<T> {
+  success: boolean;
+  result: T;
+  errors?: { code?: number; message?: string }[];
+}
+
+/** Cloudflare API call. Returns the result, or the error text. */
+async function cf<T>(
+  token: string,
+  path: string,
+  init: { method?: string; body?: unknown } = {},
+): Promise<{ ok: true; result: T } | { ok: false; error: string }> {
+  try {
+    const res = await fetch(`https://api.cloudflare.com/client/v4${path}`, {
+      method: init.method ?? "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+    });
+    const json = (await res.json().catch(() => ({}))) as CfResponse<T>;
+    if (res.ok && json.success) return { ok: true, result: json.result };
+    const msg =
+      json.errors?.map((e) => e.message ?? String(e.code)).join("; ") ||
+      `HTTP ${res.status}`;
+    return { ok: false, error: msg };
+  } catch (error) {
+    return { ok: false, error: (error as Error).message };
+  }
+}
+
+/** Sanity API call with the CLI's own login (never stored by this script). */
+async function sanityApi<T>(
+  token: string,
+  path: string,
+  init: { method?: string; body?: unknown } = {},
+): Promise<{ ok: true; result: T } | { ok: false; error: string }> {
+  try {
+    const res = await fetch(`https://api.sanity.io/v2025-08-04${path}`, {
+      method: init.method ?? "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+    });
+    const text = await res.text();
+    if (res.ok)
+      return { ok: true, result: (text ? JSON.parse(text) : null) as T };
+    return { ok: false, error: `HTTP ${res.status} ${text.slice(0, 200)}` };
+  } catch (error) {
+    return { ok: false, error: (error as Error).message };
+  }
+}
+
+/** The token of the user logged in to the Sanity CLI, or "" when there is none. */
+function sanityLoginToken(): string {
+  const r = studio(["debug", "--secrets"]);
+  const plain = r.stdout.replace(/\x1b\[[0-9;]*m/g, "");
+  const token = /Auth token:\s*(\S+)/.exec(plain)?.[1] ?? "";
+  return token === "<redacted>" ? "" : token;
+}
+
+interface SanityHook {
+  id: string;
+  name: string;
+  url: string;
+  dataset: string;
+}
+
+/**
+ * Creates the "Rebuild site" webhook on the project, idempotently. A webhook
+ * that still points at GitHub's dispatch endpoint (the GitHub Actions route)
+ * would deploy a second time, so offer to remove it.
+ */
+async function createSanityWebhook(
+  projectId: string,
+  dataset: string,
+  url: string,
+  headers: Record<string, string>,
+  manual: string,
+): Promise<boolean> {
+  const token = sanityLoginToken();
+  if (!token) {
+    console.log(c.yellow("  Not logged in to the Sanity CLI. Deferred."));
+    defer(
+      "Create the Sanity publish webhook",
+      `pnpm --filter oxlar-studio exec sanity login, then node scripts/scaffold.ts --deploy-only. Or by hand: ${manual}`,
+    );
+    return false;
+  }
+  const list = await sanityApi<SanityHook[]>(
+    token,
+    `/hooks/projects/${projectId}`,
+  );
+  if (!list.ok) {
+    console.log(c.yellow(`  Could not list webhooks: ${list.error}`));
+    defer("Create the Sanity publish webhook", manual);
+    return false;
+  }
+  for (const old of list.result) {
+    if (old.url === url) continue;
+    if (!/api\.github\.com\/repos\/.+\/dispatches/.test(old.url)) continue;
+    const drop = await decide(
+      "sanity.removeGithubWebhook",
+      `  Webhook "${old.name}" still calls GitHub Actions, so every Publish would deploy twice. Delete it?`,
+    );
+    if (drop === "yes") {
+      const del = await sanityApi(
+        token,
+        `/hooks/projects/${projectId}/${old.id}`,
+        {
+          method: "DELETE",
+        },
+      );
+      console.log(
+        del.ok
+          ? c.green(`  deleted webhook "${old.name}"`)
+          : c.yellow(`  could not delete "${old.name}": ${del.error}`),
+      );
+    } else
+      defer(
+        `Delete the old "${old.name}" webhook in Sanity Manage, API, Webhooks`,
+        "it deploys through GitHub Actions as well",
+      );
+  }
+  if (list.result.some((h) => h.url === url && h.dataset === dataset)) {
+    console.log(c.dim("  the publish webhook already exists"));
+    return true;
+  }
+  const created = await sanityApi<SanityHook>(
+    token,
+    `/hooks/projects/${projectId}`,
+    {
+      method: "POST",
+      body: {
+        type: "document",
+        name: WEBHOOK_NAME,
+        description: "Rebuilds and deploys the site when content is published.",
+        url,
+        httpMethod: "POST",
+        apiVersion: "v2025-02-19",
+        dataset,
+        includeDrafts: false,
+        isDisabledByUser: false,
+        headers,
+        rule: {
+          on: ["create", "update", "delete"],
+          filter: PUBLISH_FILTER,
+          projection: null,
+        },
+      },
+    },
+  );
+  if (!created.ok) {
+    console.log(c.yellow(`  Could not create the webhook: ${created.error}`));
+    defer("Create the Sanity publish webhook", manual);
+    return false;
+  }
+  console.log(c.green(`  Sanity webhook "${WEBHOOK_NAME}" created`));
+  return true;
+}
+
+interface DeployContext {
+  name: string;
+  siteUrl: string;
+  projectId: string | undefined;
+  dataset: string;
+}
+
+async function deployStep(n: number, ctx: DeployContext) {
+  step(n, "Deploy on push and on Publish");
+  console.log(
+    c.dim(
+      "  Rebuilds the site on every push to main and every Publish in the Studio.",
+    ),
+  );
+  const route =
+    ({ "1": "builds", "2": "actions", "3": "later" } as Record<string, string>)[
+      (
+        await ask(
+          "cloudflare.autoDeploy",
+          "  1) Cloudflare Workers Builds (recommended)  2) GitHub Actions  3) later",
+          "1",
+        )
+      ).trim()
+    ] ?? "later";
+  if (route === "later") {
+    defer(
+      "Set up deploy on push and on Publish",
+      "node scripts/scaffold.ts --deploy-only   (docs/publishing.md)",
+    );
+    record("deploy on publish", false, "deferred");
+    return;
+  }
+  if (route === "actions") return actionsRoute(ctx);
+  return buildsRoute(ctx);
+}
+
+/** Cloudflare Workers Builds + a deploy hook + the Sanity webhook. */
+async function buildsRoute(ctx: DeployContext) {
+  const later = (what: string, note: string) => {
+    defer(what, `${note}  Then: node scripts/scaffold.ts --deploy-only`);
+    record("deploy on publish", false, "deferred");
+  };
+  console.log(
+    [
+      "  Needs one Cloudflare API token per account, reused for every site and never stored:",
+      "  dash.cloudflare.com/profile/api-tokens, Create Token, Custom token, with",
+      "    Account / Workers Builds Configuration / Edit",
+      "    Account / Workers Scripts / Read",
+      c.dim(
+        "  (or set CLOUDFLARE_BUILDS_TOKEN in the environment for this run)",
+      ),
+    ].join("\n"),
+  );
+  if (!ctx.name || !/^https:\/\//.test(ctx.siteUrl))
+    return later(
+      "Connect Workers Builds",
+      "Needs the production https URL in .env (PUBLIC_SITE_URL) and the Worker name in wrangler.jsonc.",
+    );
+  const token = await askSecret(
+    "CLOUDFLARE_BUILDS_TOKEN",
+    "  Cloudflare API token",
+  );
+  if (!token) return later("Connect Workers Builds", "Create the token above.");
+
+  // Account
+  const accounts = await cf<{ id: string; name: string }[]>(token, "/accounts");
+  if (!accounts.ok || accounts.result.length === 0)
+    return later(
+      "Connect Workers Builds",
+      `The token was rejected (${accounts.ok ? "no accounts" : accounts.error}). It must be a user token with the two permissions above.`,
+    );
+  let account = accounts.result[0]!;
+  if (accounts.result.length > 1) {
+    const wanted = await ask(
+      "cloudflare.accountId",
+      `  Account id (${accounts.result.map((a) => `${a.name}: ${a.id}`).join(", ")})`,
+      account.id,
+    );
+    account = accounts.result.find((a) => a.id === wanted) ?? account;
+  }
+  const acc = `/accounts/${account.id}`;
+
+  // The Worker must exist: the hosting step's first deploy creates it.
+  const scripts = await cf<{ id: string; tag: string }[]>(
+    token,
+    `${acc}/workers/scripts`,
+  );
+  const worker = scripts.ok
+    ? scripts.result.find((s) => s.id === ctx.name)
+    : undefined;
+  if (!worker)
+    return later(
+      "Connect Workers Builds",
+      scripts.ok
+        ? `No Worker named ${ctx.name} yet. Deploy once first: pnpm exec wrangler login, pnpm build, pnpm cf:deploy.`
+        : `Could not list Workers: ${scripts.error}`,
+    );
+
+  // GitHub repository
+  const gh = run(
+    "gh",
+    [
+      "api",
+      "repos/{owner}/{repo}",
+      "--jq",
+      "[.id, .name, .owner.id, .owner.login] | @tsv",
+    ],
+    { capture: true },
+  );
+  const [repoId, repoName, ownerId, ownerLogin] = gh.stdout.trim().split("\t");
+  if (!gh.ok || !repoId || !repoName || !ownerId || !ownerLogin)
+    return later(
+      "Connect Workers Builds",
+      "Needs the GitHub repo (origin) and the gh CLI, logged in.",
+    );
+
+  // A build token lets Cloudflare's build system deploy. The dashboard creates
+  // one, together with the GitHub app install, the first time any Worker in
+  // the account is connected to Git. That part has no API: it is a one-time
+  // GitHub authorisation.
+  const oneTime =
+    "One time per Cloudflare account: dash.cloudflare.com, Workers & Pages, any Worker, Settings, Builds, Connect, GitHub, and give the Cloudflare app access to this repository (or all repositories).";
+  const buildTokens = await cf<
+    { build_token_uuid: string; build_token_name: string }[]
+  >(token, `${acc}/builds/tokens`);
+  const buildToken = buildTokens.ok ? buildTokens.result[0] : undefined;
+  if (!buildToken) {
+    console.log(c.yellow(`  No build token in this account yet. ${oneTime}`));
+    return later(
+      "Connect Cloudflare to GitHub (one time per account)",
+      oneTime,
+    );
+  }
+
+  const conn = await cf<{ repo_connection_uuid: string }>(
+    token,
+    `${acc}/builds/repos/connections`,
+    {
+      method: "PUT",
+      body: {
+        provider_type: "github",
+        provider_account_id: ownerId,
+        provider_account_name: ownerLogin,
+        repo_id: repoId,
+        repo_name: repoName,
+      },
+    },
+  );
+  if (!conn.ok) {
+    console.log(
+      c.yellow(`  Could not connect ${ownerLogin}/${repoName}: ${conn.error}`),
+    );
+    return later(
+      "Give the Cloudflare GitHub app access to the repository",
+      oneTime,
+    );
+  }
+
+  // Production trigger: reuse one that builds main, else create it.
+  type Trigger = { trigger_uuid: string; branch_includes: string[] };
+  const triggers = await cf<Trigger[]>(
+    token,
+    `${acc}/builds/workers/${worker.tag}/triggers`,
+  );
+  let trigger = triggers.ok
+    ? triggers.result.find((t) => t.branch_includes.includes("main"))
+    : undefined;
+  if (trigger) {
+    // Connecting in the dashboard creates a trigger with its own guessed
+    // commands; align it with deploy.yml's checks.
+    const patched = await cf(
+      token,
+      `${acc}/builds/triggers/${trigger.trigger_uuid}`,
+      {
+        method: "PATCH",
+        body: { build_command: BUILD_COMMAND, deploy_command: DEPLOY_COMMAND },
+      },
+    );
+    console.log(
+      patched.ok
+        ? c.green("  existing build trigger for main updated (commands)")
+        : c.yellow(`  could not update the build commands: ${patched.error}`),
+    );
+  } else {
+    const made = await cf<Trigger>(token, `${acc}/builds/triggers`, {
+      method: "POST",
+      body: {
+        external_script_id: worker.tag,
+        repo_connection_uuid: conn.result.repo_connection_uuid,
+        build_token_uuid: buildToken.build_token_uuid,
+        trigger_name: "Deploy main",
+        build_command: BUILD_COMMAND,
+        deploy_command: DEPLOY_COMMAND,
+        root_directory: "/",
+        branch_includes: ["main"],
+        branch_excludes: [],
+        path_includes: ["*"],
+        path_excludes: [],
+      },
+    });
+    if (!made.ok) return later("Create the Workers Builds trigger", made.error);
+    trigger = made.result;
+    console.log(
+      c.green(`  Workers Builds connected to ${ownerLogin}/${repoName} (main)`),
+    );
+  }
+
+  // Build variables: the same names deploy.yml reads. Values bare.
+  const env = readEnvFile();
+  const vars: Record<string, { value: string; is_secret: boolean }> = {
+    PUBLIC_SITE_URL: { value: ctx.siteUrl, is_secret: false },
+    SANITY_DATASET: { value: ctx.dataset, is_secret: false },
+  };
+  if (ctx.projectId)
+    vars.SANITY_PROJECT_ID = { value: ctx.projectId, is_secret: false };
+  for (const key of ["SANITY_API_VERSION", "PUBLIC_STYLEGUIDE"]) {
+    const v = env.get(key);
+    if (v) vars[key] = { value: v, is_secret: false };
+  }
+  const readToken = env.get("SANITY_READ_TOKEN");
+  if (readToken) vars.SANITY_READ_TOKEN = { value: readToken, is_secret: true };
+  if (existsSync(".nvmrc"))
+    vars.NODE_VERSION = {
+      value: readFileSync(".nvmrc", "utf8").trim(),
+      is_secret: false,
+    };
+  const setVars = await cf(
+    token,
+    `${acc}/builds/triggers/${trigger.trigger_uuid}/environment_variables`,
+    {
+      method: "PATCH",
+      body: vars,
+    },
+  );
+  console.log(
+    setVars.ok
+      ? c.green(`  build variables set: ${Object.keys(vars).join(", ")}`)
+      : c.yellow(`  could not set build variables: ${setVars.error}`),
+  );
+  if (!setVars.ok)
+    defer(
+      "Set the Workers Builds variables (Worker, Settings, Builds)",
+      Object.keys(vars).join(", "),
+    );
+
+  // Deploy hook: the URL the Sanity webhook calls.
+  type Hook = { deploy_hook_uuid: string; deploy_hook_name: string };
+  let hooksPath = `${acc}/builds/workers/${ctx.name}/deploy_hooks`;
+  let hooks = await cf<Hook[]>(token, hooksPath);
+  if (!hooks.ok) {
+    hooksPath = `${acc}/builds/workers/${worker.tag}/deploy_hooks`;
+    hooks = await cf<Hook[]>(token, hooksPath);
+  }
+  let hook = hooks.ok
+    ? hooks.result.find((h) => h.deploy_hook_name === HOOK_NAME)
+    : undefined;
+  if (!hook) {
+    const made = await cf<Hook>(token, hooksPath, {
+      method: "POST",
+      body: { deploy_hook_name: HOOK_NAME, branch: "main" },
+    });
+    if (!made.ok)
+      return later(
+        "Create the deploy hook (Worker, Settings, Builds, Deploy Hooks)",
+        made.error,
+      );
+    hook = made.result;
+    console.log(c.green(`  deploy hook "${HOOK_NAME}" created`));
+  } else
+    console.log(c.dim(`  deploy hook "${HOOK_NAME}" already exists, kept`));
+  const hookUrl = `https://api.cloudflare.com/client/v4/workers/builds/deploy_hooks/${hook.deploy_hook_uuid}`;
+
+  // Sanity webhook: just the URL. The hook id is the credential, so no headers.
+  let webhook = false;
+  if (ctx.projectId)
+    webhook = await createSanityWebhook(
+      ctx.projectId,
+      ctx.dataset,
+      hookUrl,
+      {},
+      `Sanity Manage, API, Webhooks: URL = the deploy hook URL (Worker, Settings, Builds, Deploy Hooks), method POST, filter ${PUBLISH_FILTER}, drafts off, no headers.`,
+    );
+  else
+    defer(
+      "Create the Sanity publish webhook once the project exists",
+      "node scripts/scaffold.ts --deploy-only",
+    );
+
+  // deploy.yml deploys too whenever the repo has PUBLIC_SITE_URL set.
+  const ghVars = run(
+    "gh",
+    ["variable", "list", "--json", "name", "--jq", ".[].name"],
+    { capture: true },
+  );
+  if (ghVars.ok && ghVars.stdout.split("\n").includes("PUBLIC_SITE_URL")) {
+    const drop = await decide(
+      "github.removeDeployVariable",
+      "  The GitHub repo has PUBLIC_SITE_URL set, so deploy.yml would deploy too. Delete that variable (deploy.yml then skips)?",
+    );
+    if (
+      drop === "yes" &&
+      run("gh", ["variable", "delete", "PUBLIC_SITE_URL"], { capture: true }).ok
+    )
+      console.log(
+        c.green(
+          "  deleted. The GitHub secrets CLOUDFLARE_API_TOKEN/ACCOUNT_ID are unused now; remove them with gh secret delete",
+        ),
+      );
+    else
+      defer(
+        "Stop deploy.yml from deploying as well",
+        "gh variable delete PUBLIC_SITE_URL",
+      );
+  }
+
+  const first = await decide(
+    "cloudflare.firstBuild",
+    "  Start a first build now?",
+  );
+  if (first === "yes") {
+    const b = await cf(
+      token,
+      `${acc}/builds/triggers/${trigger.trigger_uuid}/builds`,
+      {
+        method: "POST",
+        body: { branch: "main" },
+      },
+    );
+    console.log(
+      b.ok
+        ? c.green(
+            "  build started: dash.cloudflare.com, Workers & Pages, " +
+              ctx.name +
+              ", Deployments",
+          )
+        : c.yellow(`  could not start a build: ${b.error}`),
+    );
+  }
+  record(
+    "deploy on publish",
+    true,
+    webhook ? "Workers Builds + Sanity webhook" : "Workers Builds",
+  );
+}
+
+/** GitHub Actions: deploy.yml with repository variables, secrets and a GitHub token for Sanity. */
+async function actionsRoute(ctx: DeployContext) {
+  const vars: [string, string][] = [
+    ["PUBLIC_SITE_URL", ctx.siteUrl],
+    ["SANITY_DATASET", ctx.dataset],
+  ];
+  if (ctx.projectId) vars.push(["SANITY_PROJECT_ID", ctx.projectId]);
+  let set = true;
+  for (const [k, v] of vars)
+    set =
+      run("gh", ["variable", "set", k, "--body", v], { capture: true }).ok &&
+      set;
+  console.log(
+    set
+      ? c.green(`  GitHub variables set: ${vars.map(([k]) => k).join(", ")}`)
+      : c.yellow(
+          "  could not set the GitHub variables (is gh logged in, is origin on GitHub?)",
+        ),
+  );
+  if (!set)
+    defer(
+      "Set the GitHub repository variables",
+      vars.map(([k, v]) => `gh variable set ${k} --body ${v}`).join("; "),
+    );
+  // Secrets are typed at gh's own prompt, never passed on a command line.
+  defer(
+    "Set the two Cloudflare secrets (type each command, paste the value at the prompt)",
+    "gh secret set CLOUDFLARE_API_TOKEN, then gh secret set CLOUDFLARE_ACCOUNT_ID",
+  );
+  const repo = run(
+    "gh",
+    ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"],
+    {
+      capture: true,
+    },
+  ).stdout.trim();
+  const url = `https://api.github.com/repos/${repo || "<owner>/<repo>"}/dispatches`;
+  const manual = `docs/publishing.md: URL ${url}, filter ${PUBLISH_FILTER}, projection { "event_type": "sanity-publish" }, header Authorization: Bearer <fine-grained GitHub token, this repo, Contents: Read and write>`;
+  if (!ctx.projectId || !repo) {
+    defer("Create the Sanity publish webhook", manual);
+    record("deploy on publish", set, "GitHub Actions");
+    return;
+  }
+  console.log(
+    "  The Sanity webhook needs a fine-grained GitHub token: github.com/settings/personal-access-tokens/new,\n" +
+      `  only ${repo}, Repository permissions, Contents: Read and write. Note its expiry date.`,
+  );
+  const pat = await askSecret("GITHUB_DISPATCH_TOKEN", "  GitHub token");
+  if (!pat) {
+    defer("Create the Sanity publish webhook", manual);
+    record("deploy on publish", set, "GitHub Actions");
+    return;
+  }
+  const webhook = await createSanityWebhook(
+    ctx.projectId,
+    ctx.dataset,
+    url,
+    {
+      Authorization: `Bearer ${pat}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+    manual,
+  );
+  record("deploy on publish", set && webhook, "GitHub Actions");
 }
 
 // --- Main -------------------------------------------------------------------
@@ -661,6 +1277,20 @@ async function main() {
 
   if (MODULES_ONLY) {
     await optionalModules(1);
+    rl?.close();
+    return;
+  }
+
+  if (DEPLOY_ONLY) {
+    const env = readEnvFile();
+    const w = readFileSync("wrangler.jsonc", "utf8");
+    await deployStep(1, {
+      name: /"name"\s*:\s*"([^"]+)"/.exec(w)?.[1] ?? "",
+      siteUrl: normalizeSiteUrl(env.get("PUBLIC_SITE_URL") ?? "").url,
+      projectId: env.get("SANITY_PROJECT_ID") || undefined,
+      dataset: env.get("SANITY_DATASET") || "production",
+    });
+    report();
     rl?.close();
     return;
   }
@@ -858,6 +1488,10 @@ async function main() {
         siteVars.join(", ") +
         ". See docs/deployment.md.",
     );
+    defer(
+      "Rebuild on Publish: a Sanity webhook to statichost.eu's build hook",
+      `Sanity Manage, API, Webhooks: URL = your statichost.eu build hook, method POST, filter ${PUBLISH_FILTER}, drafts off. See docs/publishing.md.`,
+    );
     record("hosting", true, "statichost.eu");
   } else {
     const deploy = await decide(
@@ -866,7 +1500,7 @@ async function main() {
     );
     const who = run("pnpm", ["exec", "wrangler", "whoami"], { capture: true });
     const cmd =
-      "pnpm exec wrangler login && pnpm build && pnpm cf:deploy   # reads PUBLIC_SITE_URL from .env";
+      "pnpm exec wrangler login && pnpm build && pnpm cf:deploy  (reads PUBLIC_SITE_URL from .env)";
     if (
       deploy === "yes" &&
       who.ok &&
@@ -898,14 +1532,19 @@ async function main() {
       defer("Deploy to Cloudflare Workers (creates the Worker)", cmd);
       record("hosting", false, "deferred");
     }
-    defer(
-      "Set GitHub variables and secrets for deploy.yml",
-      `gh variable set PUBLIC_SITE_URL --body ${siteUrl || "<url>"}; gh variable set SANITY_PROJECT_ID --body ${projectId ?? "<id>"}; gh variable set SANITY_DATASET --body production; gh secret set CLOUDFLARE_API_TOKEN; gh secret set CLOUDFLARE_ACCOUNT_ID   # names: README.md`,
-    );
   }
 
-  // 9. Types, build, invariants
-  step(9, "Types, first build, template invariants");
+  // 9. Deploy on push and on Publish
+  if (hosting === "cloudflare")
+    await deployStep(9, {
+      name,
+      siteUrl: siteUrl || "http://localhost:4321",
+      projectId,
+      dataset: readEnvFile().get("SANITY_DATASET") || "production",
+    });
+
+  // 10. Types, build, invariants
+  step(10, "Types, first build, template invariants");
   record(
     "sanity types",
     tryRun(

@@ -34,7 +34,7 @@
     "cors: allows http://localhost:3333 (a local Studio) with credentials. The static site itself needs no CORS.",
     "token: true mints a viewer read token into .env (private datasets and preview builds only).",
     "deployStudio: runs `sanity deploy --yes --url <studioHost>`.",
-    "The publish webhook is always printed as a to-do: `sanity hooks create` is interactive only."
+    "removeGithubWebhook: true deletes an older webhook that still calls GitHub (it would deploy twice)."
   ],
   "sanity": {
     "mode": "later",
@@ -47,6 +47,11 @@
     "studioHost": ""
   },
 
-  "$comment_cloudflare": "deploy: true builds and runs `wrangler deploy` (needs wrangler logged in). \"later\" prints the commands.",
-  "cloudflare": { "deploy": "later" }
+  "$comment_cloudflare": [
+    "deploy: true builds and runs `wrangler deploy` (needs wrangler logged in). \"later\" prints the commands.",
+    "autoDeploy: \"1\" Workers Builds + deploy hook + Sanity webhook (default), \"2\" GitHub Actions, \"3\" later.",
+    "Workers Builds reads its API token from CLOUDFLARE_BUILDS_TOKEN in the environment, never from this file. See docs/publishing.md.",
+    "firstBuild: true starts a Workers build at the end of the step."
+  ],
+  "cloudflare": { "deploy": "later", "autoDeploy": "1", "firstBuild": false }
 }

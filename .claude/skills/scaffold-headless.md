@@ -17,18 +17,19 @@ answers in chat, write them to a file, and run the scaffolder with `--config`.
 
 Verified in a cloud session — check rather than assume, environments differ:
 
-| Step                                                | Headless?            | Why                                                        |
-| --------------------------------------------------- | -------------------- | ---------------------------------------------------------- |
-| Name, description, site URL                         | yes                  | plain file edits                                           |
-| `.env` from `.env.example`                          | yes                  | file copy                                                  |
-| Optional modules (three.js, React islands, preview) | yes                  | `pnpm add` over the network                                |
-| Template invariants                                 | yes                  | local script                                               |
-| Create the GitHub repo                              | yes, **via the API** | the `gh` CLI is usually absent; the GitHub tools are not   |
-| First commit and push                               | yes                  | git works                                                  |
-| Sanity project (new)                                | **no**               | needs the `sanity` CLI, logged in                          |
-| Sanity project (existing id)                        | **yes**              | writes `.env`; no CLI involved                             |
-| Sanity CORS origins                                 | **no**               | needs the `sanity` CLI, logged in                          |
-| Cloudflare Worker, secrets, deploy                  | **no**               | needs `wrangler` logged in (or a token in the environment) |
+| Step                                                | Headless?            | Why                                                                |
+| --------------------------------------------------- | -------------------- | ------------------------------------------------------------------ |
+| Name, description, site URL                         | yes                  | plain file edits                                                   |
+| `.env` from `.env.example`                          | yes                  | file copy                                                          |
+| Optional modules (three.js, React islands, preview) | yes                  | `pnpm add` over the network                                        |
+| Template invariants                                 | yes                  | local script                                                       |
+| Create the GitHub repo                              | yes, **via the API** | the `gh` CLI is usually absent; the GitHub tools are not           |
+| First commit and push                               | yes                  | git works                                                          |
+| Sanity project (new)                                | **no**               | needs the `sanity` CLI, logged in                                  |
+| Sanity project (existing id)                        | **yes**              | writes `.env`; no CLI involved                                     |
+| Sanity CORS origins                                 | **no**               | needs the `sanity` CLI, logged in                                  |
+| Cloudflare Worker, secrets, deploy                  | **no**               | needs `wrangler` logged in (or a token in the environment)         |
+| Workers Builds, deploy hook, Sanity webhook         | **no**               | needs `CLOUDFLARE_BUILDS_TOKEN`, `gh` and the Sanity CLI logged in |
 
 Sanity and Cloudflare are the honest limits. Do not pretend otherwise, and do not
 ask the user to paste tokens to get around it.

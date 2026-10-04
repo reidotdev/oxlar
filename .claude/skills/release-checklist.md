@@ -35,10 +35,11 @@ Run in this order. Stop at the first failure and fix it.
 - [ ] CORS origins allowed WITH credentials for the Studio URL (never a wildcard)
 - [ ] Webhook configured as in `docs/publishing.md`; publish a test edit and confirm the live page updates
 - [ ] `SANITY_READ_TOKEN` is set only if the dataset is private
+- [ ] Expiry date of the webhook's GitHub token written down, with a reminder to renew it (an expired token stops deploys silently; Sanity's webhook log shows `401`)
 
 ## Deploy
 
-- [ ] GitHub secrets and variables set (names in `README.md`)
+- [ ] GitHub secrets and variables set (names in `README.md`); secrets entered at the `gh secret set NAME` prompt, never with `--body`
 - [ ] `deploy.yml` succeeds from `main`; `repository_dispatch` (`sanity-publish`) succeeds
 - [ ] Response headers present (`curl -I`): CSP meta in HTML, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, immutable caching on `/_astro/*`
 - [ ] 404 page served with status 404; redirects in `public/_redirects` work
