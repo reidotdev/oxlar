@@ -158,4 +158,5 @@ Schema in `studio/schemaTypes/`, register it, add the query to `queries.ts`, run
 6. **Running the scaffolder in the wrong directory** (a stale checkout) makes the push fail. The scaffolder checks for a common ancestor first.
 7. **Strict CSP.** Astro hashes inline scripts and styles into a `<meta>` CSP; style attributes are not covered, hence no inline `style=`. Third-party libraries that emit inline styles (Shiki, the Portable Text underline mark) are replaced or avoided.
 8. **Reduced motion in tests.** Axe sampling a mid-fade reveal reports a real but transient contrast failure. Axe tests emulate reduced motion.
-9. **The Astro docs MCP URL** in `.mcp.json` could not be verified from the build environment (egress blocked). Confirm it on first use.
+9. **The Studio does not see the root `.env`.** It is bundled for the browser, and Sanity exposes only `SANITY_STUDIO_*` variables from `studio/.env`. `pnpm scaffold` writes both files. A Studio showing a "placeholder" project means `studio/.env` is missing.
+10. **The Astro docs MCP URL** in `.mcp.json` could not be verified from the build environment (egress blocked). Confirm it on first use.

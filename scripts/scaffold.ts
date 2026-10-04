@@ -216,6 +216,22 @@ function writeEnv(updates: Record<string, string>) {
   writeFileSync(".env", next.join("\n").replace(/\n*$/, "\n"));
 }
 
+/**
+ * The Studio is bundled for the browser, and Sanity only exposes variables
+ * prefixed SANITY_STUDIO_ from the Studio's own folder. The root .env is not
+ * seen, so without this file `sanity dev` opens against a placeholder project.
+ */
+function writeStudioEnv(projectId: string, dataset: string) {
+  const path = "studio/.env";
+  const wanted = `SANITY_STUDIO_PROJECT_ID=${projectId}\nSANITY_STUDIO_DATASET=${dataset}\n`;
+  if (
+    existsSync(path) &&
+    readFileSync(path, "utf8").includes(`SANITY_STUDIO_PROJECT_ID=${projectId}`)
+  )
+    return;
+  writeFileSync(path, wanted);
+}
+
 // --- Optional modules -------------------------------------------------------
 
 interface Module {
@@ -373,6 +389,10 @@ async function sanityStep(
     console.log(
       c.dim(`  project ${existingId} is already in .env, skipping creation`),
     );
+    writeStudioEnv(
+      existingId,
+      readEnvFile().get("SANITY_DATASET") || "production",
+    );
     record("sanity project", true, existingId);
     return existingId;
   }
@@ -468,7 +488,7 @@ async function sanityStep(
     if (mode !== "skip") {
       defer(
         "Connect Sanity",
-        `pnpm --filter oxlar-studio exec sanity projects create "${name}" --dataset ${dataset} --yes --json   # then SANITY_PROJECT_ID=<id> in .env, unquoted; or re-run: pnpm scaffold`,
+        `pnpm --filter oxlar-studio exec sanity projects create "${name}" --dataset ${dataset} --yes --json   # then re-run: pnpm scaffold (choose existing, paste the id; it writes .env and studio/.env)`,
       );
     }
     record("sanity project", false, mode === "skip" ? "skipped" : "deferred");
@@ -476,6 +496,7 @@ async function sanityStep(
   }
 
   writeEnv({ SANITY_PROJECT_ID: projectId, SANITY_DATASET: dataset });
+  writeStudioEnv(projectId, dataset);
   record("sanity project", true, projectId);
 
   const env = { SANITY_PROJECT_ID: projectId, SANITY_DATASET: dataset };
