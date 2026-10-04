@@ -176,6 +176,21 @@ const bareUrl = (u: string) =>
     .replace(/^["']|["']$/g, "")
     .replace(/\/$/, "");
 
+/**
+ * A site URL without a scheme ("test.rei.dev") makes Astro fail with "Invalid
+ * URL", so add https:// for anything that is not localhost. Returns what to use
+ * and a note to show the user when it was changed.
+ */
+function normalizeSiteUrl(raw: string): { url: string; note?: string } {
+  const url = bareUrl(raw);
+  if (!url || /^https?:\/\//.test(url)) return { url };
+  const fixed = `https://${url.replace(/^\/+/, "")}`;
+  return { url: fixed, note: `  Added the scheme: using ${fixed}` };
+}
+
+const sleep = (ms: number) =>
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
 // --- .env -------------------------------------------------------------------
 
 function readEnvFile(): Map<string, string> {
@@ -534,16 +549,31 @@ async function sanityStep(
           : "no";
   const corsCmd = `pnpm --filter oxlar-studio exec sanity cors add http://localhost:3333 --credentials --project-id ${projectId}`;
   if (corsWanted === "yes") {
-    if (
-      !studio([
+    // A project created seconds ago may not accept CORS changes yet: retry.
+    let added = false;
+    let lastError = "";
+    for (let attempt = 1; attempt <= 3 && !added; attempt++) {
+      const r = studio([
         "cors",
         "add",
         "http://localhost:3333",
         "--credentials",
         "--project-id",
         projectId,
-      ]).ok
-    ) {
+      ]);
+      added = r.ok;
+      // "already exists" means the origin is there, which is what we want.
+      if (!added && /already exists|Duplicate origin/i.test(r.stderr))
+        added = true;
+      if (!added) {
+        lastError = r.stderr.trim().split("\n").slice(-3).join("\n");
+        if (attempt < 3) sleep(4000);
+      }
+    }
+    if (!added) {
+      console.log(
+        c.yellow(`  Could not allow the local Studio origin:\n${lastError}`),
+      );
       defer(
         "Allow the local Studio origin (so `sanity dev` can log in)",
         corsCmd,
@@ -651,17 +681,19 @@ async function main() {
     "One-line description",
     "A new website.",
   );
-  const siteUrl = bareUrl(
+  const normalized = normalizeSiteUrl(
     await ask("siteUrl", "Production URL (optional)", ""),
   );
+  const siteUrl = normalized.url;
+  if (normalized.note) console.log(c.yellow(normalized.note));
   if (
     siteUrl &&
-    !/^https:\/\/[^\s/]+/.test(siteUrl) &&
+    !/^https:\/\//.test(siteUrl) &&
     !/^http:\/\/localhost/.test(siteUrl)
   )
     console.log(
       c.yellow(
-        `  "${siteUrl}" is not an https URL. Canonical links will use it as given.`,
+        `  "${siteUrl}" is not https. Canonical links will use it as given.`,
       ),
     );
 
