@@ -8,7 +8,7 @@
     "*.mjs",
     "*.ts"
   ],
-  "exclude": ["dist", "studio", "node_modules"],
+  "exclude": ["dist", "studio", "node_modules", "scripts/modules"],
   "compilerOptions": {
     "allowImportingTsExtensions": true,
     "erasableSyntaxOnly": true,

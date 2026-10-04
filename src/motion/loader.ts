@@ -1,4 +1,7 @@
 import type gsapType from "gsap";
+import type { ScrollTrigger as ScrollTriggerPlugin } from "gsap/ScrollTrigger";
+import type { SplitText as SplitTextPlugin } from "gsap/SplitText";
+import type { Flip as FlipPlugin } from "gsap/Flip";
 
 export type GsapPlugin = "ScrollTrigger" | "SplitText" | "Flip";
 
@@ -15,9 +18,9 @@ const plugins: Record<GsapPlugin, () => Promise<object>> = {
 };
 
 type Plugins = {
-  ScrollTrigger: typeof import("gsap/ScrollTrigger").ScrollTrigger;
-  SplitText: typeof import("gsap/SplitText").SplitText;
-  Flip: typeof import("gsap/Flip").Flip;
+  ScrollTrigger: typeof ScrollTriggerPlugin;
+  SplitText: typeof SplitTextPlugin;
+  Flip: typeof FlipPlugin;
 };
 
 /** A registered plugin's own export, for plugins with a JS API (SplitText.create, Flip.from). */

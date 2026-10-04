@@ -1,11 +1,11 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 /**
  * Lab checks on the local build (unthrottled, so thresholds are the spec's
  * targets with no headroom added). `pnpm perf` runs Lighthouse for the
  * throttled mobile profile.
  */
-async function vitals(page: import("@playwright/test").Page, path: string) {
+async function vitals(page: Page, path: string) {
   await page.addInitScript(() => {
     const w = window as unknown as Record<string, number>;
     w["__cls"] = 0;

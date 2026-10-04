@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-const scriptRequests = (page: import("@playwright/test").Page) => {
+const scriptRequests = (page: Page) => {
   const urls: string[] = [];
   page.on(
     "request",

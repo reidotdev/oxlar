@@ -129,7 +129,6 @@ for (const file of htmlFiles(dist)) {
       'document.documentElement.classList.add("js")'.replace(/[\s;]/g, "")
     )
       continue; // html.js
-    continue; // html.js
     inlineJs += gz(body);
     inlineEntries.push(body);
   }

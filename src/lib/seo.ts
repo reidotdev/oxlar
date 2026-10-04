@@ -1,4 +1,4 @@
-import { siteUrl, type SiteSettings } from "./site.ts";
+import { isPreview, siteUrl, type SiteSettings } from "./site.ts";
 
 export interface SeoInput {
   title?: string | null | undefined;
@@ -96,7 +96,8 @@ export function buildSeo(input: SeoInput, site: SiteSettings): SeoData {
     canonical,
     ogImage: abs(input.ogImage ?? ogPathFor(input.path)),
     type: input.type ?? "website",
-    noindex: input.noindex ?? false,
+    // A preview build is never indexable.
+    noindex: isPreview || (input.noindex ?? false),
     jsonLd,
     publishedAt: input.publishedAt ?? undefined,
     modifiedAt: input.modifiedAt ?? undefined,

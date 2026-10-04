@@ -1,0 +1,52 @@
+{
+  "$comment": [
+    "Answers for a headless scaffold run:",
+    "  node scripts/scaffold.ts --config scaffold.config.json --non-interactive",
+    "",
+    "This is what makes the template usable without a terminal you can type",
+    "into: a phone, a web session, CI. Copy this file, edit it, run it.",
+    "",
+    "Each remote step takes one of three answers, and the third is the point:",
+    "  true    do it now (needs the CLI, logged in)",
+    "  false   I do not want this",
+    "  \"later\" I want it, but this environment cannot do it: the run prints the",
+    "          exact command in its closing to-do list instead.",
+    "Absent means false, so a forgotten key never triggers something remote.",
+    "",
+    "No secrets belong in this file. Tokens go in .env, which is gitignored."
+  ],
+
+  "name": "my-site",
+  "description": "A new website.",
+  "siteUrl": "https://my-site.com",
+
+  "$comment_modules": "Optional modules by id: \"three\" (WebGL recipe), \"react-islands\" (React Aria for widgets native HTML cannot do), \"preview\" (draft preview build). Omit or leave empty for none. Add one later with: node scripts/scaffold.ts --modules-only",
+  "modules": [],
+
+  "$comment_hosting": "\"cloudflare\" (default: Workers static assets) or \"statichost\" (EU; only the deploy workflow changes, see docs/deployment.md).",
+  "hosting": "cloudflare",
+
+  "$comment_github": "push: push to an origin that already exists (the 'Use this template' flow sets one). create: create a new PRIVATE repo with the gh CLI and push.",
+  "github": { "push": true, "create": "later" },
+
+  "$comment_sanity": [
+    "mode: \"create\" makes a new project, \"existing\" uses projectId below (needs NO CLI), \"later\" defers with the command printed, false skips.",
+    "cors: allows http://localhost:3333 (a local Studio) with credentials. The static site itself needs no CORS.",
+    "token: true mints a viewer read token into .env (private datasets and preview builds only).",
+    "deployStudio: runs `sanity deploy --yes --url <studioHost>`.",
+    "The publish webhook is always printed as a to-do: `sanity hooks create` is interactive only."
+  ],
+  "sanity": {
+    "mode": "later",
+    "projectId": "",
+    "dataset": "production",
+    "organization": "",
+    "token": false,
+    "cors": true,
+    "deployStudio": "later",
+    "studioHost": ""
+  },
+
+  "$comment_cloudflare": "deploy: true builds and runs `wrangler deploy` (needs wrangler logged in). \"later\" prints the commands.",
+  "cloudflare": { "deploy": "later" }
+}

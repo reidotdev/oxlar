@@ -1,0 +1,11 @@
+{
+  // Same dist/, separate Worker. Protect it with Cloudflare Access.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "oxlar-preview",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page",
+  },
+}

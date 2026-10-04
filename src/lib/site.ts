@@ -2,6 +2,9 @@ import { sanityFetch } from "./sanity/client.ts";
 import { siteSettingsQuery } from "./sanity/queries.ts";
 import type { SiteSettingsQueryResult } from "./sanity/sanity.types.ts";
 
+/** `PREVIEW=true` builds the draft preview site (see docs/preview.md when the module is added). Never set in production. */
+export const isPreview = import.meta.env.PREVIEW === "true";
+
 export const siteUrl = (
   import.meta.env.PUBLIC_SITE_URL ?? "http://localhost:4321"
 ).replace(/\/$/, "");
