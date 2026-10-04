@@ -216,6 +216,22 @@ function writeEnv(updates: Record<string, string>) {
   writeFileSync(".env", next.join("\n").replace(/\n*$/, "\n"));
 }
 
+/**
+ * The Studio is bundled for the browser, and Sanity only exposes variables
+ * prefixed SANITY_STUDIO_ from the Studio's own folder. The root .env is not
+ * seen, so without this file `sanity dev` opens against a placeholder project.
+ */
+function writeStudioEnv(projectId: string, dataset: string) {
+  const path = "studio/.env";
+  const wanted = `SANITY_STUDIO_PROJECT_ID=${projectId}\nSANITY_STUDIO_DATASET=${dataset}\n`;
+  if (
+    existsSync(path) &&
+    readFileSync(path, "utf8").includes(`SANITY_STUDIO_PROJECT_ID=${projectId}`)
+  )
+    return;
+  writeFileSync(path, wanted);
+}
+
 // --- Optional modules -------------------------------------------------------
 
 interface Module {
@@ -373,6 +389,10 @@ async function sanityStep(
     console.log(
       c.dim(`  project ${existingId} is already in .env, skipping creation`),
     );
+    writeStudioEnv(
+      existingId,
+      readEnvFile().get("SANITY_DATASET") || "production",
+    );
     record("sanity project", true, existingId);
     return existingId;
   }
@@ -468,7 +488,7 @@ async function sanityStep(
     if (mode !== "skip") {
       defer(
         "Connect Sanity",
-        `pnpm --filter oxlar-studio exec sanity projects create "${name}" --dataset ${dataset} --yes --json   # then SANITY_PROJECT_ID=<id> in .env, unquoted; or re-run: pnpm scaffold`,
+        `pnpm --filter oxlar-studio exec sanity projects create "${name}" --dataset ${dataset} --yes --json   # then re-run: pnpm scaffold (choose existing, paste the id; it writes .env and studio/.env)`,
       );
     }
     record("sanity project", false, mode === "skip" ? "skipped" : "deferred");
@@ -476,6 +496,7 @@ async function sanityStep(
   }
 
   writeEnv({ SANITY_PROJECT_ID: projectId, SANITY_DATASET: dataset });
+  writeStudioEnv(projectId, dataset);
   record("sanity project", true, projectId);
 
   const env = { SANITY_PROJECT_ID: projectId, SANITY_DATASET: dataset };
@@ -794,7 +815,8 @@ async function main() {
       "  Build and deploy to Cloudflare Workers now?",
     );
     const who = run("pnpm", ["exec", "wrangler", "whoami"], { capture: true });
-    const cmd = `pnpm exec wrangler login && PUBLIC_SITE_URL=${siteUrl || "<url>"} pnpm build && pnpm cf:deploy`;
+    const cmd =
+      "pnpm exec wrangler login && pnpm build && pnpm cf:deploy   # reads PUBLIC_SITE_URL from .env";
     if (
       deploy === "yes" &&
       who.ok &&
@@ -815,6 +837,14 @@ async function main() {
         record("hosting", false, "deploy failed");
       else record("hosting", true, "deployed");
     } else if (deploy !== "no") {
+      if (!siteUrl) {
+        defer(
+          "Set PUBLIC_SITE_URL in .env before the first build",
+          "Any https URL works for the first deploy (e.g. https://" +
+            name +
+            ".workers.dev). wrangler prints the real *.workers.dev URL; put it in .env, then rebuild and redeploy.",
+        );
+      }
       defer("Deploy to Cloudflare Workers (creates the Worker)", cmd);
       record("hosting", false, "deferred");
     }
@@ -855,7 +885,7 @@ function report() {
     );
   if (todos.length) {
     console.log(
-      `\n${c.b("Still to do")} ${c.dim("(commands are exact; copy them)")}`,
+      `\n${c.b("Still to do")} ${c.dim("(copy the commands; replace any <placeholder> first, the shell treats <...> as redirection)")}`,
     );
     todos.forEach((t, i) =>
       console.log(`  ${i + 1}. ${t.what}\n     ${c.dim(t.how)}`),

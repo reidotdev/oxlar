@@ -3,6 +3,14 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "astro/config";
 import sitemap from "@astrojs/sitemap";
 
+// Astro does not load .env into this config file, so do it here (Node built-in).
+// Variables already set in the shell win over the file.
+try {
+  process.loadEnvFile(".env");
+} catch {
+  /* no .env: fine */
+}
+
 const isBuild = process.argv.includes("build");
 const site = process.env.PUBLIC_SITE_URL?.trim().replace(/\/$/, "");
 
