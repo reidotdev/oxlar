@@ -25,6 +25,7 @@ Run in this order. Stop at the first failure and fix it.
 - [ ] `PUBLIC_SITE_URL` is the production URL, not localhost (canonical links, sitemap, OG)
 - [ ] OG images render (`/og/index.png`) and match the brand
 - [ ] Decide on `/styleguide`: keep (noindex) or set `PUBLIC_STYLEGUIDE=false`
+- [ ] Delete `public/demo/` (demo cover image used by the bundled fixtures) once real content exists
 - [ ] Replace the template favicon (`public/favicon.svg`, regenerate the PNGs) and `site.webmanifest`
 - [ ] Update `brand-colors.ts` to mirror the final `--paper`, `--dark` and brand tokens
 

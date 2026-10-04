@@ -118,3 +118,30 @@ Playwright runs against `astro preview` of the production build, Chromium only:
 - INP is approximated with the Event Timing API in a lab run; there is no field data.
 - Lighthouse numbers come from a single run in a shared container.
 - The Astro docs MCP URL, the Cloudflare Workers Builds deploy hook and the statichost.eu and Bunny.net paths could not be verified from the build environment (network egress was restricted).
+
+## Dependencies beyond the spec's list
+
+---
+
+The spec says to add nothing outside section 4 without asking. These were needed and are the smallest option; flag any you disagree with.
+
+| Package              | Where          | Why                                                                                             |
+| -------------------- | -------------- | ----------------------------------------------------------------------------------------------- |
+| `groq`               | root, dev      | The official `groq` tag and `defineQuery`. Sanity typegen finds queries through it              |
+| `postcss-html`       | root, dev      | Lets Stylelint parse `<style>` blocks in `.astro` files (the token rules cannot run without it) |
+| `lighthouse`         | root, dev      | The spec's Lighthouse budget gate (`pnpm perf`) has no other source                             |
+| `styled-components`  | `studio/` only | Required peer of `sanity` 6; `sanity build` fails without it. Never reaches the web package     |
+| `react`, `react-dom` | `studio/` only | Required by the Studio. The web package has none                                                |
+
+`eslint` is on 10.x (not 9): `eslint-plugin-astro` 3.2.1 declares a peer of `eslint >= 10`, and lint passes on it. BMT-214A's pin to 9.x existed because of `eslint-config-next` and does not apply here. The React Aria MCP from BMT-214A's `.mcp.json` was dropped because the base template has no React Aria; the `react-islands` module doc suggests adding it back.
+
+## Decisions on the spec's open questions
+
+---
+
+| Question                                             | Decision                                                                                                                                                                         |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nested `studio/` or workspace                        | Nested package, listed in `pnpm-workspace.yaml` so one install and one lockfile serve both. Not an `apps/*` split                                                                |
+| Preview mode and Visual Editing in the first release | Draft preview build shipped as an opt-in module (`PREVIEW=true`, noindex, separate Worker config), untested against a live dataset. Visual Editing not included                  |
+| React Aria widgets too complex to rebuild natively   | `Select` (custom popover listbox) became a native `<select>`; everything else was rebuilt natively. A rich listbox, combobox or date picker would use the `react-islands` module |
+| Scaffold default if Cloudflare is not acceptable     | Cloudflare stays the default; `hosting: "statichost"` (EU) only rewrites the deploy workflow. Neither alternative was exercised                                                  |
