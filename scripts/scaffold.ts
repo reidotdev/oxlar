@@ -4,10 +4,10 @@
  *   pnpm scaffold
  *
  * Walks through: project details, install, env, git, GitHub, Sanity (project,
- * dataset, CORS, Studio deploy), optional modules, hosting (Cloudflare Workers,
- * or statichost.eu), deploy on push and on Publish (Workers Builds, a deploy
- * hook and the Sanity webhook), then types, a first build and the template
- * invariants. Every remote or irreversible step asks first. A
+ * dataset, CORS, Studio deploy), optional modules, Cloudflare Workers (custom
+ * domain, first deploy), deploy on push and on Publish (Workers Builds, a
+ * deploy hook and the Sanity webhook), then types, a first build and the
+ * template invariants. Every remote or irreversible step asks first. A
  * missing CLI or a failed remote command is reported and deferred to a closing
  * to-do list; it never ends the run.
  *
@@ -850,6 +850,70 @@ async function createSanityWebhook(
   return true;
 }
 
+/** Builds with the given site URL and runs `wrangler deploy`, echoing its output. */
+function buildAndDeploy(siteUrl: string): { ok: boolean; workersDev?: string } {
+  if (!run("pnpm", ["build"], { env: { PUBLIC_SITE_URL: siteUrl } }).ok)
+    return { ok: false };
+  const d = run("pnpm", ["exec", "wrangler", "deploy"], { capture: true });
+  process.stdout.write(d.stdout);
+  process.stderr.write(d.stderr);
+  const workersDev = /https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev/.exec(
+    d.stdout,
+  )?.[0];
+  return { ok: d.ok, ...(workersDev ? { workersDev } : {}) };
+}
+
+/**
+ * A production URL on the site's own domain needs a route on the Worker, or
+ * the domain does not point at it. Writes a custom-domain route into
+ * wrangler.jsonc so every deploy (local, Workers Builds, deploy.yml) keeps it.
+ * Cloudflare then creates the DNS record and certificate; the domain's zone
+ * must be on Cloudflare, in the same account.
+ */
+async function attachCustomDomain(siteUrl: string) {
+  let host = "";
+  try {
+    host = new URL(siteUrl).hostname;
+  } catch {
+    return;
+  }
+  if (!host || host === "localhost" || host.endsWith(".workers.dev")) return;
+  const w = readFileSync("wrangler.jsonc", "utf8");
+  if (w.includes(`"pattern": "${host}"`)) {
+    console.log(c.dim(`  ${host} is already a route in wrangler.jsonc`));
+    return;
+  }
+  const entry = `{ "pattern": "${host}", "custom_domain": true }`;
+  const how = `add "routes": [${entry}] to wrangler.jsonc, or Worker, Settings, Domains & Routes in the dashboard`;
+  if (/"routes"\s*:/.test(w)) {
+    defer(`Attach ${host} to the Worker`, how);
+    return;
+  }
+  const answer = await decide(
+    "cloudflare.customDomain",
+    `  Attach ${host} to the Worker? Its DNS must be on Cloudflare, in this account`,
+  );
+  if (answer !== "yes") {
+    if (answer === "later") defer(`Attach ${host} to the Worker`, how);
+    return;
+  }
+  const next = w.replace(
+    /("compatibility_date"\s*:\s*"[^"]*",?\n)/,
+    `$1  "routes": [${entry}],\n`,
+  );
+  if (next === w) {
+    defer(`Attach ${host} to the Worker`, how);
+    return;
+  }
+  writeFileSync("wrangler.jsonc", next);
+  run("pnpm", ["exec", "prettier", "--write", "wrangler.jsonc"], {
+    capture: true,
+  });
+  console.log(
+    c.green(`  ${host} added as a custom domain route (wrangler.jsonc)`),
+  );
+}
+
 interface DeployContext {
   name: string;
   siteUrl: string;
@@ -882,8 +946,47 @@ async function deployStep(n: number, ctx: DeployContext) {
     record("deploy on publish", false, "deferred");
     return;
   }
+  // Both routes build from GitHub, so what the scaffold changed here (the
+  // Worker name, the domain route, modules) has to be pushed first.
+  await pushScaffoldChanges(ctx.name);
   if (route === "actions") return actionsRoute(ctx);
   return buildsRoute(ctx);
+}
+
+/**
+ * "Use this template" gives a repository that already has history, so the
+ * Git step commits nothing. Without this, Cloudflare would build the
+ * template's wrangler.jsonc: the wrong Worker name and no domain route.
+ */
+async function pushScaffoldChanges(name: string) {
+  const status = run("git", ["status", "--porcelain"], { capture: true });
+  const changed = status.stdout.trim();
+  if (!status.ok || !changed) return;
+  console.log(
+    `  Changed by the scaffold, not on GitHub yet:\n${c.dim(changed.replace(/^/gm, "    "))}`,
+  );
+  const answer = await decide(
+    "github.pushScaffold",
+    "  Commit these and push, so the Cloudflare build sees them?",
+  );
+  const how = `git add -A && git commit -m "Scaffold ${name}" && git push`;
+  if (answer !== "yes") {
+    defer(
+      "Commit and push the scaffold's changes before the first Cloudflare build",
+      how,
+    );
+    return;
+  }
+  run("git", ["add", "-A"], { capture: true });
+  const committed = run("git", ["commit", "-m", `Scaffold ${name}`], {
+    capture: true,
+  }).ok;
+  if (committed && run("git", ["push"], { capture: true }).ok)
+    console.log(c.green("  committed and pushed"));
+  else {
+    console.log(c.yellow("  could not commit or push. Deferred."));
+    defer("Commit and push the scaffold's changes", how);
+  }
 }
 
 /** Cloudflare Workers Builds + a deploy hook + the Sanity webhook. */
@@ -1312,9 +1415,13 @@ async function main() {
     "A new website.",
   );
   const normalized = normalizeSiteUrl(
-    await ask("siteUrl", "Production URL (optional)", ""),
+    await ask(
+      "siteUrl",
+      "Production URL (your own domain, or empty for the free *.workers.dev address)",
+      "",
+    ),
   );
-  const siteUrl = normalized.url;
+  let siteUrl = normalized.url;
   if (normalized.note) console.log(c.yellow(normalized.note));
   if (
     siteUrl &&
@@ -1451,49 +1558,10 @@ async function main() {
   // 7. Modules
   await optionalModules(7);
 
-  // 8. Hosting
-  step(8, "Hosting");
-  const hostingRaw = (
-    await ask(
-      "hosting",
-      "  Hosting target: cloudflare or statichost",
-      "cloudflare",
-    )
-  ).toLowerCase();
-  const hosting = hostingRaw.startsWith("s") ? "statichost" : "cloudflare";
-  const siteVars = [
-    `PUBLIC_SITE_URL=${siteUrl || "<production url>"}`,
-    `SANITY_PROJECT_ID=${projectId ?? "<id>"}`,
-    "SANITY_DATASET=production",
-  ];
-  if (hosting === "statichost") {
-    // statichost.eu builds from the repository; only the deploy workflow changes.
-    let wf = readFileSync(".github/workflows/deploy.yml", "utf8");
-    if (wf.includes("wrangler deploy")) {
-      wf = wf
-        .replace(
-          /\n {6}CLOUDFLARE_API_TOKEN:.*\n {6}CLOUDFLARE_ACCOUNT_ID:.*/,
-          "",
-        )
-        .replace(
-          /\n {6}- name: Deploy to Cloudflare Workers\n {8}run: pnpm exec wrangler deploy\n?/,
-          "\n      # statichost.eu builds from the repository (build: pnpm build, publish: dist).\n      # Configure that, and the same variables, on their site. This workflow only checks the build\n      # and, on a Sanity publish, you trigger their build hook here if you use one.\n",
-        );
-      writeFileSync(".github/workflows/deploy.yml", wf);
-      console.log(c.green("  deploy.yml no longer calls wrangler"));
-    }
-    defer(
-      "Set up statichost.eu",
-      "Create the site, build command `pnpm build`, publish directory `dist`, with the variables " +
-        siteVars.join(", ") +
-        ". See docs/deployment.md.",
-    );
-    defer(
-      "Rebuild on Publish: a Sanity webhook to statichost.eu's build hook",
-      `Sanity Manage, API, Webhooks: URL = your statichost.eu build hook, method POST, filter ${PUBLISH_FILTER}, drafts off. See docs/publishing.md.`,
-    );
-    record("hosting", true, "statichost.eu");
-  } else {
+  // 8. Cloudflare Workers
+  step(8, "Cloudflare Workers");
+  await attachCustomDomain(siteUrl);
+  {
     const deploy = await decide(
       "cloudflare.deploy",
       "  Build and deploy to Cloudflare Workers now?",
@@ -1506,42 +1574,43 @@ async function main() {
       who.ok &&
       /logged in|email/i.test(who.stdout + who.stderr)
     ) {
-      const built = run("pnpm", ["build"], {
-        env: { PUBLIC_SITE_URL: siteUrl || "http://localhost:4321" },
-      });
-      if (
-        !built.ok ||
-        !tryRun(
-          "Deploy to Cloudflare Workers",
-          "pnpm",
-          ["exec", "wrangler", "deploy"],
-          cmd,
-        )
-      )
-        record("hosting", false, "deploy failed");
-      else record("hosting", true, "deployed");
-    } else if (deploy !== "no") {
-      if (!siteUrl) {
-        defer(
-          "Set PUBLIC_SITE_URL in .env before the first build",
-          "Any https URL works for the first deploy (e.g. https://" +
-            name +
-            ".workers.dev). wrangler prints the real *.workers.dev URL; put it in .env, then rebuild and redeploy.",
+      const result = buildAndDeploy(siteUrl || "http://localhost:4321");
+      // No domain given: the first deploy reveals the *.workers.dev address.
+      // Save it and deploy again, so canonical links and the sitemap use it.
+      if (result.ok && !siteUrl && result.workersDev) {
+        siteUrl = result.workersDev;
+        writeEnv({ PUBLIC_SITE_URL: siteUrl });
+        console.log(
+          c.green(
+            `  the site is at ${siteUrl} (saved to .env); deploying again with it`,
+          ),
         );
-      }
+        record("hosting", buildAndDeploy(siteUrl).ok, siteUrl);
+      } else
+        record(
+          "hosting",
+          result.ok,
+          result.ok ? siteUrl || "deployed" : "deploy failed",
+        );
+      if (!result.ok) defer("Deploy to Cloudflare Workers", cmd);
+    } else if (deploy !== "no") {
+      if (!siteUrl)
+        defer(
+          "Put the site's address in .env",
+          "Deploy once with the command below; wrangler prints the *.workers.dev address. Put it in .env as PUBLIC_SITE_URL, then build and deploy again.",
+        );
       defer("Deploy to Cloudflare Workers (creates the Worker)", cmd);
       record("hosting", false, "deferred");
     }
   }
 
   // 9. Deploy on push and on Publish
-  if (hosting === "cloudflare")
-    await deployStep(9, {
-      name,
-      siteUrl: siteUrl || "http://localhost:4321",
-      projectId,
-      dataset: readEnvFile().get("SANITY_DATASET") || "production",
-    });
+  await deployStep(9, {
+    name,
+    siteUrl: siteUrl || "http://localhost:4321",
+    projectId,
+    dataset: readEnvFile().get("SANITY_DATASET") || "production",
+  });
 
   // 10. Types, build, invariants
   step(10, "Types, first build, template invariants");

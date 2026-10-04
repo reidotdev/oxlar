@@ -54,13 +54,14 @@ These two things are done by hand once and reused by every site:
 
 Run `pnpm scaffold`, or on an existing project `node scripts/scaffold.ts --deploy-only`. It needs the Worker deployed once (the hosting step does that), the GitHub repository, the `gh` CLI and the Sanity CLI logged in. It then:
 
-1. connects the repository to the Worker (production branch `main`);
-2. sets the build command to the same checks `deploy.yml` runs (`pnpm run typecheck && pnpm run lint && pnpm run build && pnpm run perf:size`) and the deploy command to `pnpm exec wrangler deploy`;
-3. sets the build variables from `.env`: `PUBLIC_SITE_URL`, `SANITY_PROJECT_ID`, `SANITY_DATASET`, `NODE_VERSION` from `.nvmrc`, plus `SANITY_API_VERSION`, `PUBLIC_STYLEGUIDE` and `SANITY_READ_TOKEN` (as a secret) when present;
-4. creates a deploy hook named `sanity-publish` for `main`;
-5. creates the Sanity webhook `Rebuild site` pointing at the hook, using your Sanity CLI login. It also finds an older webhook that still calls GitHub and offers to delete it;
-6. offers to delete the GitHub `PUBLIC_SITE_URL` variable, so `deploy.yml` stops deploying as well;
-7. optionally starts a first build.
+1. commits and pushes what the scaffold changed (the Worker name and domain route in `wrangler.jsonc`, any modules), after asking, because Cloudflare builds from GitHub;
+2. connects the repository to the Worker (production branch `main`);
+3. sets the build command to the same checks `deploy.yml` runs (`pnpm run typecheck && pnpm run lint && pnpm run build && pnpm run perf:size`) and the deploy command to `pnpm exec wrangler deploy`;
+4. sets the build variables from `.env`: `PUBLIC_SITE_URL`, `SANITY_PROJECT_ID`, `SANITY_DATASET`, `NODE_VERSION` from `.nvmrc`, plus `SANITY_API_VERSION`, `PUBLIC_STYLEGUIDE` and `SANITY_READ_TOKEN` (as a secret) when present;
+5. creates a deploy hook named `sanity-publish` for `main`;
+6. creates the Sanity webhook `Rebuild site` pointing at the hook, using your Sanity CLI login. It also finds an older webhook that still calls GitHub and offers to delete it;
+7. offers to delete the GitHub `PUBLIC_SITE_URL` variable, so `deploy.yml` stops deploying as well;
+8. optionally starts a first build.
 
 Every step is idempotent: re-running keeps what exists, and a trigger created in the dashboard gets the commands above. Anything it cannot do goes to the closing to-do list.
 

@@ -29,7 +29,7 @@ PUBLIC_SITE_URL=https://example.com pnpm build
 pnpm cf:deploy
 ```
 
-`pnpm scaffold` can do this and prints the exact commands for what it skips. Rename the Worker in `wrangler.jsonc` (`name`) per project. Add a custom domain in the Cloudflare dashboard (Workers, Settings, Domains) or with a `routes` entry (`"routes": [{ "pattern": "<your-domain>", "custom_domain": true }]`). For CI, an API token from the "Edit Cloudflare Workers" template deployed both the Worker and such a custom-domain route in our test, with no extra zone or DNS permission (see `docs/publishing.md`).
+`pnpm scaffold` can do this and prints the exact commands for what it skips. Rename the Worker in `wrangler.jsonc` (`name`) per project. When the production URL is on your own domain, `pnpm scaffold` offers to add it as a custom-domain route in `wrangler.jsonc` (`"routes": [{ "pattern": "<your-domain>", "custom_domain": true }]`), so every deploy keeps it; Cloudflare creates the DNS record and certificate. The domain's DNS must be on Cloudflare, in the same account. A site on `*.workers.dev` needs no route. To add more hostnames later (for example both `example.com` and `www.example.com`), add more entries to `routes`, or use the dashboard (Worker, Settings, Domains & Routes). For CI, an API token from the "Edit Cloudflare Workers" template deployed both the Worker and such a custom-domain route in our test, with no extra zone or DNS permission (see `docs/publishing.md`).
 
 ### Deploys after the first
 
@@ -60,18 +60,3 @@ CSP notes:
 ## Redirects: `public/_redirects`
 
 One rule per line: `from to status`, for example `/old-path /new-path 301`. Cloudflare reads this file from the build output. Keep the list short; large redirect maps belong in the Worker config.
-
-## Alternative: EU hosting (statichost.eu or Bunny.net)
-
-For clients with data-residency requirements. The site is static files, so only the deploy step changes.
-
-**statichost.eu**: builds from the repository or accepts an upload.
-
-- Set the build command `pnpm build` and the publish directory `dist` in the statichost.eu site settings, with the same environment variables as above.
-- Or keep GitHub Actions, replace the last step of `deploy.yml` with the statichost.eu deploy command from their docs, and drop the Cloudflare secrets.
-- `public/_headers` is a Cloudflare/Netlify format; translate it into statichost.eu's `headers` configuration and keep the same values.
-- Sanity itself stores content in Google Cloud regions (EU or US per dataset location). Check the dataset location if residency covers content too.
-
-**Bunny.net**: serve `dist/` from a Storage Zone behind a Pull Zone; upload with their API or SFTP from CI. Set headers (including `frame-ancestors`, caching) as Edge Rules, and map `404.html` as the custom 404.
-
-Neither path was exercised in this build environment. The scaffold offers statichost.eu as an option that only rewrites the deploy workflow.
