@@ -117,7 +117,7 @@ Playwright runs against `astro preview` of the production build, Chromium only:
 - Tested in Chromium only. Safari and Firefox behaviour (Popover API, anchor positioning fallback, `<details name>`, view transitions) is unverified.
 - INP is approximated with the Event Timing API in a lab run; there is no field data.
 - Lighthouse numbers come from a single run in a shared container.
-- The Astro docs MCP URL, the Cloudflare Workers Builds deploy hook and the statichost.eu and Bunny.net paths could not be verified from the build environment (network egress was restricted).
+- The Astro docs MCP URL could not be verified from the build environment (network egress was restricted). The Workers Builds setup in the scaffold was tested against mocked APIs first.
 
 ## Dependencies beyond the spec's list
 
@@ -144,4 +144,4 @@ The spec says to add nothing outside section 4 without asking. These were needed
 | Nested `studio/` or workspace                        | Nested package, listed in `pnpm-workspace.yaml` so one install and one lockfile serve both. Not an `apps/*` split                                                                |
 | Preview mode and Visual Editing in the first release | Draft preview build shipped as an opt-in module (`PREVIEW=true`, noindex, separate Worker config), untested against a live dataset. Visual Editing not included                  |
 | React Aria widgets too complex to rebuild natively   | `Select` (custom popover listbox) became a native `<select>`; everything else was rebuilt natively. A rich listbox, combobox or date picker would use the `react-islands` module |
-| Scaffold default if Cloudflare is not acceptable     | Cloudflare stays the default; `hosting: "statichost"` (EU) only rewrites the deploy workflow. Neither alternative was exercised                                                  |
+| Scaffold default if Cloudflare is not acceptable     | Cloudflare is the only hosting the scaffold sets up. The output is plain static files, so another host only needs a different deploy step                                        |

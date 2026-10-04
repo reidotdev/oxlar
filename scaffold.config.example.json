@@ -13,7 +13,8 @@
     "          exact command in its closing to-do list instead.",
     "Absent means false, so a forgotten key never triggers something remote.",
     "",
-    "No secrets belong in this file. Tokens go in .env, which is gitignored."
+    "No secrets belong in this file. Tokens go in .env, which is gitignored.",
+    "scaffold.config.json itself is gitignored too."
   ],
 
   "name": "my-site",
@@ -23,11 +24,8 @@
   "$comment_modules": "Optional modules by id: \"three\" (WebGL recipe), \"react-islands\" (React Aria for widgets native HTML cannot do), \"preview\" (draft preview build). Omit or leave empty for none. Add one later with: node scripts/scaffold.ts --modules-only",
   "modules": [],
 
-  "$comment_hosting": "\"cloudflare\" (default: Workers static assets) or \"statichost\" (EU; only the deploy workflow changes, see docs/deployment.md).",
-  "hosting": "cloudflare",
-
-  "$comment_github": "push: push to an origin that already exists (the 'Use this template' flow sets one). create: create a new PRIVATE repo with the gh CLI and push.",
-  "github": { "push": true, "create": "later" },
+  "$comment_github": "pushScaffold: commit and push what the scaffold changed (Worker name, domain route, modules) before Cloudflare builds from GitHub. push: push to an origin that already exists (the 'Use this template' flow sets one). create: create a new PRIVATE repo with the gh CLI and push.",
+  "github": { "push": true, "create": "later", "pushScaffold": true },
 
   "$comment_sanity": [
     "mode: \"create\" makes a new project, \"existing\" uses projectId below (needs NO CLI), \"later\" defers with the command printed, false skips.",
@@ -48,10 +46,16 @@
   },
 
   "$comment_cloudflare": [
+    "customDomain: true adds the production URL's host as a custom-domain route in wrangler.jsonc (DNS on Cloudflare, same account). Ignored for *.workers.dev.",
     "deploy: true builds and runs `wrangler deploy` (needs wrangler logged in). \"later\" prints the commands.",
     "autoDeploy: \"1\" Workers Builds + deploy hook + Sanity webhook (default), \"2\" GitHub Actions, \"3\" later.",
     "Workers Builds reads its API token from CLOUDFLARE_BUILDS_TOKEN in the environment, never from this file. See docs/publishing.md.",
     "firstBuild: true starts a Workers build at the end of the step."
   ],
-  "cloudflare": { "deploy": "later", "autoDeploy": "1", "firstBuild": false }
+  "cloudflare": {
+    "customDomain": false,
+    "deploy": "later",
+    "autoDeploy": "1",
+    "firstBuild": false
+  }
 }
