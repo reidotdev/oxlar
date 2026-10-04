@@ -680,6 +680,10 @@ async function sanityStep(
 
 const PUBLISH_FILTER = `_type in ["page", "post", "siteSettings"] && !(_id in path("drafts.**"))`;
 const HOOK_NAME = "sanity-publish";
+// The webhook body. Sanity requires a projection. The deploy hook ignores the
+// body; GitHub's dispatch endpoint needs event_type.
+const HOOK_PROJECTION = `{ "_id": _id, "_type": _type }`;
+const DISPATCH_PROJECTION = `{ "event_type": "sanity-publish", "client_payload": { "type": _type, "slug": slug.current } }`;
 const WEBHOOK_NAME = "Rebuild site";
 // The same checks deploy.yml runs before it deploys.
 const BUILD_COMMAND =
@@ -767,6 +771,7 @@ async function createSanityWebhook(
   dataset: string,
   url: string,
   headers: Record<string, string>,
+  projection: string,
   manual: string,
 ): Promise<boolean> {
   const token = sanityLoginToken();
@@ -836,7 +841,7 @@ async function createSanityWebhook(
         rule: {
           on: ["create", "update", "delete"],
           filter: PUBLISH_FILTER,
-          projection: null,
+          projection,
         },
       },
     },
@@ -1233,6 +1238,7 @@ async function buildsRoute(ctx: DeployContext) {
       ctx.dataset,
       hookUrl,
       {},
+      HOOK_PROJECTION,
       `Sanity Manage, API, Webhooks: URL = the deploy hook URL (Worker, Settings, Builds, Deploy Hooks), method POST, filter ${PUBLISH_FILTER}, drafts off, no headers.`,
     );
   else
@@ -1360,6 +1366,7 @@ async function actionsRoute(ctx: DeployContext) {
       Accept: "application/vnd.github+json",
       "X-GitHub-Api-Version": "2022-11-28",
     },
+    DISPATCH_PROJECTION,
     manual,
   );
   record("deploy on publish", set && webhook, "GitHub Actions");
