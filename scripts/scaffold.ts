@@ -1017,9 +1017,23 @@ async function buildsRoute(ctx: DeployContext) {
   let trigger = triggers.ok
     ? triggers.result.find((t) => t.branch_includes.includes("main"))
     : undefined;
-  if (trigger)
-    console.log(c.dim("  build trigger for main already exists, kept"));
-  else {
+  if (trigger) {
+    // Connecting in the dashboard creates a trigger with its own guessed
+    // commands; align it with deploy.yml's checks.
+    const patched = await cf(
+      token,
+      `${acc}/builds/triggers/${trigger.trigger_uuid}`,
+      {
+        method: "PATCH",
+        body: { build_command: BUILD_COMMAND, deploy_command: DEPLOY_COMMAND },
+      },
+    );
+    console.log(
+      patched.ok
+        ? c.green("  existing build trigger for main updated (commands)")
+        : c.yellow(`  could not update the build commands: ${patched.error}`),
+    );
+  } else {
     const made = await cf<Trigger>(token, `${acc}/builds/triggers`, {
       method: "POST",
       body: {

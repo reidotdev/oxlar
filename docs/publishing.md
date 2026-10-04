@@ -62,7 +62,7 @@ Run `pnpm scaffold`, or on an existing project `node scripts/scaffold.ts --deplo
 6. offers to delete the GitHub `PUBLIC_SITE_URL` variable, so `deploy.yml` stops deploying as well;
 7. optionally starts a first build.
 
-Every step is idempotent: re-running keeps what exists. Anything it cannot do goes to the closing to-do list.
+Every step is idempotent: re-running keeps what exists, and a trigger created in the dashboard gets the commands above. Anything it cannot do goes to the closing to-do list.
 
 To do it by hand instead: connect the Worker in the dashboard (Settings, Builds), set the same commands and variables, create the deploy hook (Settings, Builds, Deploy Hooks), then a Sanity webhook with the hook URL, method `POST`, the filter shown under the GitHub Actions route, drafts off and no headers.
 
