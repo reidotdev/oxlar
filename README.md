@@ -56,9 +56,11 @@ The site builds and runs with no credentials: without `SANITY_PROJECT_ID` it ren
 | `docs/comparison.md`          | Lighthouse, JS and CSS bytes and build time vs BMT-214A                     |
 | `docs/migration-inventory.md` | What BMT-214A contained and how each piece was ported                       |
 
-## GitHub Actions: secrets and variables
+## Deploying: Workers Builds or GitHub Actions
 
-Set these as **repository** variables and secrets (Settings, Secrets and variables, Actions). The deploy job is skipped until `PUBLIC_SITE_URL` exists:
+By default Cloudflare Workers Builds deploys on push, and a Sanity webhook calls its deploy hook on Publish. The scaffold sets it up (`node scripts/scaffold.ts --deploy-only` for an existing project) and nothing goes into GitHub. It needs a one-time setup per Cloudflare account, described in `docs/publishing.md`.
+
+The alternative is `deploy.yml` on GitHub Actions. It needs these **repository** variables and secrets (Settings, Secrets and variables, Actions), and the deploy job is skipped until `PUBLIC_SITE_URL` exists, so leave that unset on a Workers Builds site:
 
 | Kind     | Name                                      | Used by                             |
 | -------- | ----------------------------------------- | ----------------------------------- |

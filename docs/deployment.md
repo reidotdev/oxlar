@@ -31,9 +31,9 @@ pnpm cf:deploy
 
 `pnpm scaffold` can do this and prints the exact commands for what it skips. Rename the Worker in `wrangler.jsonc` (`name`) per project. Add a custom domain in the Cloudflare dashboard (Workers, Settings, Domains) or with a `routes` entry (`"routes": [{ "pattern": "<your-domain>", "custom_domain": true }]`). For CI, an API token from the "Edit Cloudflare Workers" template deployed both the Worker and such a custom-domain route in our test, with no extra zone or DNS permission (see `docs/publishing.md`).
 
-### CI deploys
+### Deploys after the first
 
-`.github/workflows/deploy.yml` runs on push to `main`, on `repository_dispatch` (`sanity-publish`) and manually. Secrets and variables are listed in `docs/publishing.md` and `README.md`.
+By default Cloudflare Workers Builds deploys on every push to `main`, and a deploy hook called by the Sanity webhook deploys on every Publish. `pnpm scaffold` (or `node scripts/scaffold.ts --deploy-only`) sets both up. The alternative is `.github/workflows/deploy.yml`, which runs on push to `main`, on `repository_dispatch` (`sanity-publish`) and manually, once the repository has the `PUBLIC_SITE_URL` variable. Use one or the other. `docs/publishing.md` compares them and lists the tokens and variables.
 
 ## Headers: `public/_headers`
 

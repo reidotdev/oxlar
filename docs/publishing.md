@@ -1,18 +1,23 @@
 # Publishing
 
-Editors publish in the hosted Studio. A Sanity webhook tells GitHub, GitHub rebuilds the static site and deploys it to Cloudflare Workers. Nothing is manual after the one-time setup below.
+Editors publish in the hosted Studio. A Sanity webhook starts a rebuild of the static site, which then deploys to Cloudflare Workers. Nothing is manual after the one-time setup.
 
-```
-Studio (publish) -> Sanity webhook -> GitHub repository_dispatch "sanity-publish"
-                 -> Actions: deploy.yml (install, typecheck, lint, build, wrangler deploy)
-                 -> live site
-```
+There are two ways to wire it. `pnpm scaffold` sets up either (on a project that is already set up: `node scripts/scaffold.ts --deploy-only`):
 
-Latency from clicking Publish to the change being live: **about 1 minute in our test, plus queue time**. In an end-to-end test (publish in the hosted Studio, webhook, `repository_dispatch`, `deploy.yml`, live site) the deploy job ran for 1m6s to 1m9s. Webhook delivery takes seconds; add however long GitHub takes to pick up the job.
+|                        | Cloudflare Workers Builds (default)                 | GitHub Actions (`deploy.yml`)                               |
+| ---------------------- | --------------------------------------------------- | ----------------------------------------------------------- |
+| Who builds             | Cloudflare, from the GitHub repo                    | GitHub Actions                                              |
+| On Publish             | The Sanity webhook calls a Cloudflare deploy hook   | The Sanity webhook calls GitHub `repository_dispatch`       |
+| Tokens per site        | None: the hook URL is the credential                | A GitHub token for Sanity, two Cloudflare secrets in GitHub |
+| A token that expires   | None                                                | The GitHub token (publishing then silently stops deploying) |
+| Set up by the scaffold | All of it, after a one-time step per account        | Variables and the webhook; you paste the tokens             |
+| Checks before deploy   | The build command runs them; `ci.yml` runs as usual | Same job                                                    |
 
-## One-time setup
+Use one route per site; both at once deploy twice. `deploy.yml` deploys whenever the repository has the `PUBLIC_SITE_URL` variable, so the Workers Builds route leaves it unset (the scaffold offers to delete it).
 
-### 1. Host the Studio
+Latency from clicking Publish to the change being live, measured on the GitHub Actions route: **about 1 minute, plus queue time** (the deploy job ran 1m6s to 1m9s). Webhook delivery takes seconds.
+
+## Host the Studio
 
 ```bash
 pnpm --filter oxlar-studio deploy
@@ -29,13 +34,61 @@ pnpm exec sanity cors add https://<studio-host>.sanity.studio --credentials
 
 Never allow a wildcard origin with credentials: any page on that domain could then make authenticated requests to the project.
 
-### 2. GitHub token for the webhook
+## Default: Cloudflare Workers Builds
+
+```
+git push to main ----------------------------------> Workers Build -> live site
+Studio (publish) -> Sanity webhook -> deploy hook --> Workers Build -> live site
+```
+
+Workers Builds builds the repository on Cloudflare and runs `wrangler deploy` there. A [deploy hook](https://developers.cloudflare.com/workers/ci-cd/builds/deploy-hooks/) is a secret URL that starts the same build on a `POST`, with no auth header. Requests that arrive while a build is still queued are folded into it, so a burst of publishes builds once.
+
+### One time per Cloudflare account
+
+These two things are done by hand once and reused by every site:
+
+1. **Connect Cloudflare to GitHub.** Dashboard, Workers & Pages, any Worker, Settings, Builds, Connect, GitHub. Give the Cloudflare GitHub app access to all repositories, or add each new site's repository to it later. This is a GitHub authorisation, so it has no API. It also creates the account's _build token_, which Cloudflare's build system uses to deploy.
+2. **Create an API token for the scaffold.** My Profile, API Tokens, Create Token, Custom token, with two permissions: _Account, Workers Builds Configuration, Edit_ and _Account, Workers Scripts, Read_. It must be a user token (the Builds API rejects account tokens). Keep it in your password manager. The scaffold asks for it at a hidden prompt (or reads `CLOUDFLARE_BUILDS_TOKEN` from the environment), uses it for that run only and stores it nowhere.
+
+### Per site (the scaffold does this)
+
+Run `pnpm scaffold`, or on an existing project `node scripts/scaffold.ts --deploy-only`. It needs the Worker deployed once (the hosting step does that), the GitHub repository, the `gh` CLI and the Sanity CLI logged in. It then:
+
+1. connects the repository to the Worker (production branch `main`);
+2. sets the build command to the same checks `deploy.yml` runs (`pnpm run typecheck && pnpm run lint && pnpm run build && pnpm run perf:size`) and the deploy command to `pnpm exec wrangler deploy`;
+3. sets the build variables from `.env`: `PUBLIC_SITE_URL`, `SANITY_PROJECT_ID`, `SANITY_DATASET`, `NODE_VERSION` from `.nvmrc`, plus `SANITY_API_VERSION`, `PUBLIC_STYLEGUIDE` and `SANITY_READ_TOKEN` (as a secret) when present;
+4. creates a deploy hook named `sanity-publish` for `main`;
+5. creates the Sanity webhook `Rebuild site` pointing at the hook, using your Sanity CLI login. It also finds an older webhook that still calls GitHub and offers to delete it;
+6. offers to delete the GitHub `PUBLIC_SITE_URL` variable, so `deploy.yml` stops deploying as well;
+7. optionally starts a first build.
+
+Every step is idempotent: re-running keeps what exists. Anything it cannot do goes to the closing to-do list.
+
+To do it by hand instead: connect the Worker in the dashboard (Settings, Builds), set the same commands and variables, create the deploy hook (Settings, Builds, Deploy Hooks), then a Sanity webhook with the hook URL, method `POST`, the filter shown under the GitHub Actions route, drafts off and no headers.
+
+### Test it
+
+Publish an edit in the Studio, then watch the Worker's build history in the dashboard, where the trigger shows the hook name. Each build has its log.
+
+This route is new: the steps above follow Cloudflare's Builds API reference and were tested against mocked APIs. Confirm the first real publish end to end before relying on it, and record the measured latency here.
+
+## Alternative: GitHub Actions
+
+```
+Studio (publish) -> Sanity webhook -> GitHub repository_dispatch "sanity-publish"
+                 -> Actions: deploy.yml (install, typecheck, lint, build, wrangler deploy)
+                 -> live site
+```
+
+Choose option 2 at the scaffold's deploy step: it sets the repository variables with `gh`, asks for the GitHub token at a hidden prompt, creates the webhook, and lists the two Cloudflare secrets for you to set. The steps below are the manual equivalent.
+
+### 1. GitHub token for the webhook
 
 Create a fine-grained personal access token (or a GitHub App token) limited to this one repository with **Contents: Read and write**. `repository_dispatch` requires that permission. Store it only in the Sanity webhook configuration, never in the repo.
 
 A fine-grained token expires. When it does, publishing keeps working in the Studio but **silently stops deploying**: nothing fails where an editor would see it. Write the expiry date down where you will see it (a calendar reminder works), and renew the token before then. The webhook's delivery log in Sanity Manage (API, Webhooks, the webhook, attempts) shows a `401` from GitHub once the token has expired; replace the token in the Authorization header to fix it.
 
-### 3. Create the webhook
+### 2. Create the webhook
 
 In Sanity Manage, go to API, Webhooks, Create webhook.
 
@@ -56,7 +109,7 @@ The form takes HTTP headers one row per header, with a Name and a Value column; 
 
 | Name                   | Value                         |
 | ---------------------- | ----------------------------- |
-| `Authorization`        | `Bearer <token from step 2>`  |
+| `Authorization`        | `Bearer <token from step 1>`  |
 | `Accept`               | `application/vnd.github+json` |
 | `X-GitHub-Api-Version` | `2022-11-28`                  |
 
@@ -66,7 +119,7 @@ The filter keeps drafts out. The projection produces the body GitHub expects (`e
 
 If you add a document type that renders pages, add it to the filter's `_type in [...]` list.
 
-### 4. GitHub secrets and variables
+### 3. GitHub secrets and variables
 
 Repository settings, Secrets and variables, Actions. Use **repository-level** variables and secrets (not an environment): the deploy job is skipped until the `PUBLIC_SITE_URL` variable exists, and a job-level condition cannot see environment-scoped variables.
 
@@ -104,7 +157,7 @@ Never pass a secret with `--body "<secret>"`: the value then lands in your shell
 
 Type these commands rather than copying them from a chat or a web page. A copied line can carry invisible characters, which `gh` reads as an extra argument and rejects with `accepts at most 1 arg(s), received 2`.
 
-### 5. Test it
+### 4. Test it
 
 Fire one dispatch by hand first. `read -rs` asks for the token without echoing it, so it stays out of your shell history:
 
@@ -118,10 +171,6 @@ unset GH_DISPATCH_TOKEN
 
 Then check the Actions tab for a `Deploy` run triggered by `repository_dispatch`, and publish a real edit in the Studio to test the whole chain.
 
-## Alternative: Cloudflare Workers Builds
-
-If the Worker is connected to the repository through Cloudflare Workers Builds, Cloudflare can create a deploy hook URL (Settings, Builds, Deploy hooks) that rebuilds on `POST`. Point the Sanity webhook at that URL (no GitHub token needed) and keep `deploy.yml` for pushes only. This path was not verified in this environment; confirm the deploy hook feature exists for your project before relying on it.
-
 ## Troubleshooting
 
 - **Webhook returns 401**: the Authorization value is missing the `Bearer ` prefix, or the token has expired. Check the webhook's delivery log in Sanity Manage, then fix the header or replace the token.
@@ -129,5 +178,8 @@ If the Worker is connected to the repository through Cloudflare Workers Builds, 
 - **`gh` says `accepts at most 1 arg(s), received 2`**: the command line carries an extra argument, usually an invisible character from a copied line, or an inline `# comment` (zsh passes `#` through as an argument in an interactive shell). Type the command by hand.
 - **Workflow does not start**: `repository_dispatch` only fires workflows on the default branch. Make sure `deploy.yml` is on `main`.
 - **Build fails after a publish**: the error names the document id (`[sanity] Document <id> failed validation`). Fix the content (missing alt text, slug, title) and publish again.
-- **Site shows demo content**: `SANITY_PROJECT_ID` is not set in the repository variables.
+- **Site shows demo content**: `SANITY_PROJECT_ID` is not set in the build variables (Workers Builds) or the repository variables (GitHub Actions).
+- **Every publish deploys twice**: both routes are active. Delete the `PUBLIC_SITE_URL` repository variable (Workers Builds route), or disconnect the Worker from Git (GitHub Actions route).
+- **Workers Builds: "Invalid token"**: the API token used by the scaffold is an account token, or lacks _Workers Builds Configuration: Edit_. Create a user token with the two permissions listed above.
+- **Workers Builds: no build token, or the repository is not found**: the one-time GitHub connection is missing, or the Cloudflare GitHub app has no access to this repository (GitHub, Settings, Applications, Cloudflare Workers and Pages, Configure).
 - **Changes appear late**: Sanity's API CDN can serve a cached read for a few seconds after publish. A second run, or `useCdn: false`, removes this at the cost of speed.
