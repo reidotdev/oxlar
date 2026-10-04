@@ -59,7 +59,7 @@ pnpm --filter oxlar-studio dev
 
 ## GitHub Actions: secrets and variables
 
-Create an environment named `production` and set:
+Set these as **repository** variables and secrets (Settings, Secrets and variables, Actions). The deploy job is skipped until `PUBLIC_SITE_URL` exists:
 
 | Kind     | Name                                      | Used by                             |
 | -------- | ----------------------------------------- | ----------------------------------- |

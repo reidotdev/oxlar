@@ -18,8 +18,11 @@ concurrency:
 
 jobs:
   deploy:
+    # Skipped (not failed) until the repository has PUBLIC_SITE_URL set, so the
+    # template repo itself and fresh clones show no red Deploy run. Job-level `if`
+    # cannot see environment-scoped variables, hence repository-level variables below.
+    if: ${{ vars.PUBLIC_SITE_URL != '' }}
     runs-on: ubuntu-latest
-    environment: production
     env:
       PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
       SANITY_PROJECT_ID: ${{ vars.SANITY_PROJECT_ID }}

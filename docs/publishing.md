@@ -56,7 +56,7 @@ If you add a document type that renders pages, add it to the filter's `_type in 
 
 ### 4. GitHub secrets and variables
 
-Repository settings, Secrets and variables, Actions. Create an environment named `production`.
+Repository settings, Secrets and variables, Actions. Use **repository-level** variables and secrets (not an environment): the deploy job is skipped until the `PUBLIC_SITE_URL` variable exists, and a job-level condition cannot see environment-scoped variables.
 
 | Kind     | Name                    | Purpose                                          |
 | -------- | ----------------------- | ------------------------------------------------ |
@@ -88,5 +88,5 @@ If the Worker is connected to the repository through Cloudflare Workers Builds, 
 - **Webhook returns 404 or 403**: the token lacks Contents write on this repo, or the repo path is wrong.
 - **Workflow does not start**: `repository_dispatch` only fires workflows on the default branch. Make sure `deploy.yml` is on `main`.
 - **Build fails after a publish**: the error names the document id (`[sanity] Document <id> failed validation`). Fix the content (missing alt text, slug, title) and publish again.
-- **Site shows demo content**: `SANITY_PROJECT_ID` is not set in the `production` environment variables.
+- **Site shows demo content**: `SANITY_PROJECT_ID` is not set in the repository variables.
 - **Changes appear late**: Sanity's API CDN can serve a cached read for a few seconds after publish. A second run, or `useCdn: false`, removes this at the cost of speed.
