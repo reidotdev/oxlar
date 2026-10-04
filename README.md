@@ -14,14 +14,19 @@ A page with no animation and no widget ships **0 KB of JavaScript**. See `docs/c
 
 ## Start a project
 
-Use this repository as a GitHub template, clone it, then:
+This is a **GitHub template repo**. Generate a new site from it (fresh history, its own `origin`), then run the setup:
 
 ```bash
-pnpm install
-pnpm scaffold          # interview: name, URL, Sanity, GitHub, modules, hosting
+# creates a new PRIVATE repo from the template and clones it
+gh repo create my-site --template reidotdev/oxlar --private --clone
+cd my-site && pnpm install && pnpm scaffold
 ```
 
-No terminal to answer prompts (phone, web session, CI)? Copy `scaffold.config.example.json` to `scaffold.config.json`, fill it in and run `node scripts/scaffold.ts --config scaffold.config.json --non-interactive`. See `.claude/skills/scaffold-headless.md`.
+No `gh`? Use the green **"Use this template"** button on the repo page, clone the result, then `pnpm install && pnpm scaffold`. The scaffolder detects the template's existing `origin` and skips repo creation.
+
+`pnpm scaffold` is an interview: project name, URL, Sanity (create a project, use an existing id, or later), GitHub, optional modules (React islands, three.js, draft preview), hosting (Cloudflare Workers, or statichost.eu). It runs `pnpm install`, `pnpm sanity:types`, a first build and the template invariants, then prints a to-do list with the exact commands for anything it could not do. Every remote step asks first; a missing CLI or a failed command is reported, never fatal. Re-running is safe.
+
+No terminal to answer prompts (phone, web session, CI)? Copy `scaffold.config.example.json` to `scaffold.config.json`, fill it in and run `node scripts/scaffold.ts --config scaffold.config.json --non-interactive`. See `.claude/skills/scaffold-headless.md`. After setup, run the `design-discovery` skill to fill `docs/design.md`.
 
 The site builds and runs with no credentials: without `SANITY_PROJECT_ID` it renders demo content.
 

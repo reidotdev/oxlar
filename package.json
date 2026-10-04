@@ -1,6 +1,7 @@
 {
   "name": "oxlar",
   "version": "0.1.0",
+  "description": "A lean, near-zero-JS Astro template for portfolio, showcase and blog sites (Sanity, GSAP, Cloudflare Workers).",
   "private": true,
   "type": "module",
   "license": "MIT",
