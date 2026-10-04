@@ -1,4 +1,4 @@
-import { loadGsap } from "./loader.ts";
+import { loadGsap, loadPlugin } from "./loader.ts";
 
 /**
  * Headline line-by-line rise using SplitText. data-motion="split-text".
@@ -10,12 +10,12 @@ export async function init(root: ParentNode = document): Promise<() => void> {
   ];
   if (els.length === 0) return () => {};
 
-  const gsap = await loadGsap("ScrollTrigger", "SplitText");
-  const { SplitText } = await import("gsap/SplitText");
+  const gsap = await loadGsap("ScrollTrigger");
+  const SplitText = await loadPlugin("SplitText");
   const mm = gsap.matchMedia();
 
   mm.add("(prefers-reduced-motion: no-preference)", () => {
-    const splits: InstanceType<typeof SplitText>[] = [];
+    const splits: ReturnType<typeof SplitText.create>[] = [];
     for (const el of els) {
       const split = SplitText.create(el, {
         type: "lines",

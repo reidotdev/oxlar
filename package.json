@@ -21,7 +21,7 @@
     "perf": "node scripts/check-bundle-size.ts && node scripts/lighthouse.ts",
     "perf:size": "node scripts/check-bundle-size.ts",
     "scaffold": "node scripts/scaffold.ts",
-    "deploy": "wrangler deploy"
+    "cf:deploy": "wrangler deploy"
   },
   "dependencies": {
     "@sanity/client": "8.9.0",

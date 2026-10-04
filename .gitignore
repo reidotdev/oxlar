@@ -16,3 +16,4 @@ studio/.sanity/
 .claude/worktrees/
 # Source media stays out of git; upload to Sanity or object storage.
 /public/video/
+studio/schema.json

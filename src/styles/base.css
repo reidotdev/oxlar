@@ -82,10 +82,19 @@ pre {
 
 /* Motion hidden states live in CSS under html.js (set by the head script) so
    nothing flashes. Only below-the-fold elements may start hidden; the LCP
-   element never waits for JS. */
+   element never waits for JS. The failsafe animation reveals everything after
+   3 s even if the motion script never runs (blocked, offline, errored). */
 @media (prefers-reduced-motion: no-preference) {
-  html.js [data-motion="reveal"]:not([data-motion-ready]) {
+  html.js [data-motion]:not([data-motion-ready]) {
     opacity: 0;
     transform: translateY(1.5rem);
+    animation: motion-failsafe 0s 3s forwards;
+  }
+}
+
+@keyframes motion-failsafe {
+  to {
+    opacity: 1;
+    transform: none;
   }
 }

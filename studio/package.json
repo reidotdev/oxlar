@@ -7,7 +7,7 @@
     "dev": "sanity dev",
     "build": "sanity build",
     "deploy": "sanity deploy",
-    "schema:extract": "sanity schema extract --path schema.json",
+    "schema:extract": "sanity schema extract --path schema.json --force",
     "typegen": "sanity typegen generate"
   },
   "dependencies": {

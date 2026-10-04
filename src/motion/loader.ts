@@ -14,6 +14,20 @@ const plugins: Record<GsapPlugin, () => Promise<object>> = {
   Flip: () => import("gsap/Flip").then((m) => m.Flip),
 };
 
+type Plugins = {
+  ScrollTrigger: typeof import("gsap/ScrollTrigger").ScrollTrigger;
+  SplitText: typeof import("gsap/SplitText").SplitText;
+  Flip: typeof import("gsap/Flip").Flip;
+};
+
+/** A registered plugin's own export, for plugins with a JS API (SplitText.create, Flip.from). */
+export async function loadPlugin<K extends GsapPlugin>(
+  name: K,
+): Promise<Plugins[K]> {
+  await loadGsap(name);
+  return (await plugins[name]()) as Plugins[K];
+}
+
 /**
  * Dynamically imports gsap (once) and registers the requested plugins (once).
  * GSAP is never imported statically anywhere else, so a page that never calls

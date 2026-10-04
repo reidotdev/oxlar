@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      # The build must succeed without credentials: no SANITY_PROJECT_ID means demo content.
+      PUBLIC_SITE_URL: https://example.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Invariants first: no build needed, so a clobbered checkout fails in
+      # seconds with an explanation. Also fails when generated Sanity types are stale.
+      - name: Verify template invariants
+        run: pnpm verify:template
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Lint
+        run: pnpm lint
+      - name: Build
+        run: pnpm build
+      - name: Bundle budgets
+        run: pnpm perf:size
+
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Playwright (e2e, keyboard, axe, no-JS, motion, SEO, vitals)
+        run: pnpm test
+      - name: Lighthouse budgets (mobile, throttled)
+        run: pnpm build && pnpm perf
+        env:
+          PUBLIC_SITE_URL: https://example.com
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reports
+          path: |
+            playwright-report/
+            perf-report/
+          retention-days: 7
