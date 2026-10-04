@@ -15,7 +15,7 @@ There are two ways to wire it. `pnpm scaffold` sets up either (on a project that
 
 Use one route per site; both at once deploy twice. `deploy.yml` deploys whenever the repository has the `PUBLIC_SITE_URL` variable, so the Workers Builds route leaves it unset (the scaffold offers to delete it).
 
-Latency from clicking Publish to the change being live, measured on the GitHub Actions route: **about 1 minute, plus queue time** (the deploy job ran 1m6s to 1m9s). Webhook delivery takes seconds.
+Latency from clicking Publish to the change being live, measured on the GitHub Actions route: **about 1 minute, plus queue time** (the deploy job ran 1m6s to 1m9s). Webhook delivery takes seconds. A Workers Build runs the same checks and build; its time is shown per build in the Worker's build history.
 
 ## Host the Studio
 
@@ -47,7 +47,10 @@ Workers Builds builds the repository on Cloudflare and runs `wrangler deploy` th
 
 These two things are done by hand once and reused by every site:
 
-1. **Connect Cloudflare to GitHub.** Dashboard, Workers & Pages, any Worker, Settings, Builds, Connect, GitHub. Give the Cloudflare GitHub app access to all repositories, or add each new site's repository to it later. This is a GitHub authorisation, so it has no API. It also creates the account's _build token_, which Cloudflare's build system uses to deploy.
+1. **Connect Cloudflare to GitHub.** Dashboard, Workers & Pages, any Worker, Settings, Builds, Connect, GitHub. This installs the Cloudflare GitHub app on your account and links it to Cloudflare. It is a GitHub authorisation, so it has no API. It also creates the account's _build token_, which Cloudflare's build system uses to deploy.
+   - **Install it through this Connect flow, not from GitHub's side.** Cloudflare only knows installations made from its dashboard. One installed directly on GitHub fails with "This project is disconnected from your Git account".
+   - **Repository access.** _All repositories_ means every future site needs no manual step. _Only select repositories_ means each new site's repository must be added (GitHub, Settings, Applications, Installed GitHub Apps, Cloudflare Workers and Pages, Configure) before the scaffold's deploy step.
+   - **If the app's only repository is deleted**, GitHub removes the installation and the link breaks. Connect again from the dashboard.
 2. **Create an API token for the scaffold.** My Profile, API Tokens, Create Token, Custom token, with two permissions: _Account, Workers Builds Configuration, Edit_ and _Account, Workers Scripts, Read_. It must be a user token (the Builds API rejects account tokens). Keep it in your password manager. The scaffold asks for it at a hidden prompt (or reads `CLOUDFLARE_BUILDS_TOKEN` from the environment), uses it for that run only and stores it nowhere.
 
 ### Per site (the scaffold does this)
@@ -71,7 +74,14 @@ To do it by hand instead: connect the Worker in the dashboard (Settings, Builds)
 
 Publish an edit in the Studio, then watch the Worker's build history in the dashboard, where the trigger shows the hook name. Each build has its log.
 
-This route is new: the steps above follow Cloudflare's Builds API reference and were tested against mocked APIs. Confirm the first real publish end to end before relying on it, and record the measured latency here.
+Verified end to end on a live site (custom domain, react-islands module): the scaffold set up the trigger, the variables, the deploy hook and the webhook through the real APIs; a Publish in the hosted Studio started a Workers Build (listed in the Worker's version history as `sanity-publish - deploy hook`) and the change went live; a push to `main` built and deployed as well.
+
+What a build looks like in the dashboard:
+
+- **From a Publish**: the version is labelled with the hook name, and the author is the Cloudflare account owner, since a hook has no Git author.
+- **From a push**: the version shows the commit.
+
+Two bugs that first run found are fixed in the scaffold: Sanity rejects a webhook without a projection string, and a module's edits must be formatted before they are committed, or `pnpm lint` fails the build.
 
 ## Alternative: GitHub Actions
 
@@ -182,5 +192,6 @@ Then check the Actions tab for a `Deploy` run triggered by `repository_dispatch`
 - **Site shows demo content**: `SANITY_PROJECT_ID` is not set in the build variables (Workers Builds) or the repository variables (GitHub Actions).
 - **Every publish deploys twice**: both routes are active. Delete the `PUBLIC_SITE_URL` repository variable (Workers Builds route), or disconnect the Worker from Git (GitHub Actions route).
 - **Workers Builds: "Invalid token"**: the API token used by the scaffold is an account token, or lacks _Workers Builds Configuration: Edit_. Create a user token with the two permissions listed above.
+- **Workers Builds: "This project is disconnected from your Git account"**: Cloudflare's link to the GitHub app is gone (uninstalled, installed from GitHub's side, or removed with its only repository). Connect again from the Cloudflare dashboard (Worker, Settings, Builds, Connect, GitHub), then run `node scripts/scaffold.ts --deploy-only`.
 - **Workers Builds: no build token, or the repository is not found**: the one-time GitHub connection is missing, or the Cloudflare GitHub app has no access to this repository (GitHub, Settings, Applications, Cloudflare Workers and Pages, Configure).
 - **Changes appear late**: Sanity's API CDN can serve a cached read for a few seconds after publish. A second run, or `useCdn: false`, removes this at the cost of speed.

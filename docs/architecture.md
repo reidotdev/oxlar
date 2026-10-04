@@ -117,7 +117,7 @@ Playwright runs against `astro preview` of the production build, Chromium only:
 - Tested in Chromium only. Safari and Firefox behaviour (Popover API, anchor positioning fallback, `<details name>`, view transitions) is unverified.
 - INP is approximated with the Event Timing API in a lab run; there is no field data.
 - Lighthouse numbers come from a single run in a shared container.
-- The Astro docs MCP URL could not be verified from the build environment (network egress was restricted). The Workers Builds setup in the scaffold was tested against mocked APIs first.
+- The Astro docs MCP URL could not be verified from the build environment (network egress was restricted). The Workers Builds setup in the scaffold was tested against mocked APIs first, then verified end to end on a live site.
 
 ## Dependencies beyond the spec's list
 

@@ -1099,7 +1099,7 @@ async function buildsRoute(ctx: DeployContext) {
   // the account is connected to Git. That part has no API: it is a one-time
   // GitHub authorisation.
   const oneTime =
-    "One time per Cloudflare account: dash.cloudflare.com, Workers & Pages, any Worker, Settings, Builds, Connect, GitHub, and give the Cloudflare app access to this repository (or all repositories).";
+    "One time per Cloudflare account: dash.cloudflare.com, Workers & Pages, any Worker, Settings, Builds, Connect, GitHub, and give the Cloudflare app access to this repository (or all repositories). Install the app through this Connect flow, not from GitHub: Cloudflare only knows installations made from its side.";
   const buildTokens = await cf<
     { build_token_uuid: string; build_token_name: string }[]
   >(token, `${acc}/builds/tokens`);
@@ -1130,9 +1130,17 @@ async function buildsRoute(ctx: DeployContext) {
     console.log(
       c.yellow(`  Could not connect ${ownerLogin}/${repoName}: ${conn.error}`),
     );
+    // "Disconnected from your Git account": Cloudflare's link points at a
+    // GitHub app installation that no longer exists (uninstalled, or removed
+    // by GitHub when the only repository it could see was deleted).
+    if (/disconnected/i.test(conn.error))
+      return later(
+        "Reconnect Cloudflare to GitHub",
+        `Cloudflare's link to the GitHub app is gone. dash.cloudflare.com, Workers & Pages, ${ctx.name}, Settings, Builds, Connect, GitHub; authorise again and pick ${ownerLogin}/${repoName}.`,
+      );
     return later(
       "Give the Cloudflare GitHub app access to the repository",
-      oneTime,
+      `GitHub, Settings, Applications, Installed GitHub Apps, Cloudflare Workers and Pages, Configure: add ${ownerLogin}/${repoName} (or All repositories). If the app is not listed there: ${oneTime}`,
     );
   }
 
