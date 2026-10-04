@@ -441,7 +441,7 @@ async function sanityStep(
       return undefined;
     }
   } else if (mode === "create") {
-    const login = studio(["projects", "list", "--json"]);
+    const login = studio(["projects", "list"]);
     if (!login.ok) {
       console.log(
         c.yellow("  Not logged in to Sanity (or the CLI failed). Deferred."),
@@ -470,6 +470,24 @@ async function sanityStep(
     projectId = /"(?:projectId|id)"\s*:\s*"([a-z0-9-]+)"/.exec(
       created.stdout,
     )?.[1];
+    if (created.ok && !projectId) {
+      // The project exists; only the id could not be read from the CLI output.
+      // Never suggest re-creating it: that would make a duplicate project.
+      console.log(
+        c.yellow(
+          "  The project was created, but its id could not be read from the CLI output.",
+        ),
+      );
+      console.log(
+        c.dim(created.stdout.trim().split("\n").slice(-6).join("\n")),
+      );
+      defer(
+        "Connect the project that was just created",
+        `pnpm --filter oxlar-studio exec sanity projects list   # copy the id, then re-run: pnpm scaffold (choose 2, paste the id)`,
+      );
+      record("sanity project", false, "created, id not read");
+      return undefined;
+    }
     if (!created.ok || !projectId) {
       console.log(
         c.yellow(
