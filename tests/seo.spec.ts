@@ -2,24 +2,24 @@ import { expect, test } from "@playwright/test";
 
 test("robots.txt points at the sitemap and hides the styleguide", async ({
   request,
+  baseURL,
 }) => {
   const res = await request.get("/robots.txt");
   expect(res.status()).toBe(200);
   const text = await res.text();
-  expect(text).toContain("Sitemap: http://localhost:4321/sitemap-index.xml");
+  expect(text).toContain(`Sitemap: ${baseURL}/sitemap-index.xml`);
   expect(text).toContain("Disallow: /styleguide");
 });
 
 test("sitemap lists content and excludes the styleguide", async ({
   request,
+  baseURL,
 }) => {
   const index = await (await request.get("/sitemap-index.xml")).text();
   expect(index).toContain("sitemap-0.xml");
   const sitemap = await (await request.get("/sitemap-0.xml")).text();
-  expect(sitemap).toContain("http://localhost:4321/about");
-  expect(sitemap).toContain(
-    "http://localhost:4321/blog/zero-javascript-by-default",
-  );
+  expect(sitemap).toContain(`${baseURL}/about`);
+  expect(sitemap).toContain(`${baseURL}/blog/zero-javascript-by-default`);
   expect(sitemap).not.toContain("styleguide");
   expect(sitemap).not.toContain("404");
 });
@@ -48,12 +48,13 @@ test("OG endpoint returns a 1200x630 PNG", async ({ request }) => {
 
 test("a post carries metadata, canonical, OG and valid JSON-LD", async ({
   page,
+  baseURL,
 }) => {
   await page.goto("/blog/zero-javascript-by-default");
   await expect(page).toHaveTitle("Zero JavaScript by default · oxlar");
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     "href",
-    "http://localhost:4321/blog/zero-javascript-by-default",
+    `${baseURL}/blog/zero-javascript-by-default`,
   );
   await expect(page.locator('meta[property="og:type"]')).toHaveAttribute(
     "content",
@@ -61,7 +62,7 @@ test("a post carries metadata, canonical, OG and valid JSON-LD", async ({
   );
   await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
     "content",
-    "http://localhost:4321/og/blog/zero-javascript-by-default.png",
+    `${baseURL}/og/blog/zero-javascript-by-default.png`,
   );
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   await expect(page.locator('meta[name="viewport"]')).toHaveCount(1);

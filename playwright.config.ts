@@ -6,7 +6,9 @@ import { defineConfig, devices } from "@playwright/test";
  * Chromium only. Set PW_CHROMIUM_PATH to use a pre-installed browser.
  */
 const executablePath = process.env["PW_CHROMIUM_PATH"];
-const port = 4321;
+// PW_PORT moves the test server off 4321 when something else holds it. The
+// specs read the URL from `baseURL`, never a hardcoded port.
+const port = Number(process.env["PW_PORT"]) || 4321;
 
 export default defineConfig({
   testDir: "./tests",
