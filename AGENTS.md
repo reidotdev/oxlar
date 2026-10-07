@@ -55,7 +55,9 @@ Pinned versions live in `package.json` (exact, no `^`). Key ones: astro 6.4.8, g
 
 Use `pnpm run <name>` when in doubt: `pnpm <name>` prefers pnpm's own built-in command of the same name. `verify:template` fails if a script name collides with one (`deploy` did, hence `cf:deploy`).
 
-With a pre-installed browser (no `playwright install`), set `PW_CHROMIUM_PATH` to its executable.
+With a pre-installed browser (no `playwright install`), set `PW_CHROMIUM_PATH` to its executable. If port 4321 is taken, set `PW_PORT` (for example `PW_PORT=4399 pnpm test`).
+
+`pnpm test` always builds with the demo fixtures: `playwright.config.ts` sets `SANITY_PROJECT_ID` to empty for its web server, overriding `.env`, so a real (even empty) Sanity project never fails the suite.
 
 ## Directory map
 

@@ -148,6 +148,36 @@ check("no analytics or third-party scripts", () => {
     : null;
 });
 
+/**
+ * A component's <script> may only import from islands/ or motion/. Any depth
+ * of `../` is fine: a component in a subfolder (src/components/sections/)
+ * needs `../../islands/`. Nothing else may follow the import.
+ */
+const CLIENT_IMPORT =
+  /^import\s+["'](?:\.\.\/)+(?:islands|motion)\/[^"']+["'];?$/;
+
+check("the client-import rule accepts nested paths and nothing else", () => {
+  const pass = [
+    'import "../islands/menu.ts";',
+    'import "../../islands/menu.ts";',
+    "import '../../../motion/index.ts'",
+  ];
+  const fail = [
+    'import "./islands/menu.ts";',
+    'import "../lib/site.ts";',
+    'import { x } from "../islands/menu.ts";',
+    'import "../islands/menu.ts"; document.body.remove();',
+    "document.body.remove();",
+  ];
+  const wrong = [
+    ...pass.filter((l) => !CLIENT_IMPORT.test(l)),
+    ...fail.filter((l) => CLIENT_IMPORT.test(l)),
+  ];
+  return wrong.length
+    ? `CLIENT_IMPORT misclassifies: ${wrong.join(" | ")}`
+    : null;
+});
+
 check("client JS lives only in src/islands and src/motion", () => {
   const offenders: string[] = [];
   for (const p of srcFiles.map(posix)) {
@@ -168,9 +198,7 @@ check("client JS lives only in src/islands and src/motion", () => {
         const onlyImports = body
           .split("\n")
           .every(
-            (line) =>
-              /^import\s+["']\.\.\/(islands|motion)\//.test(line.trim()) ||
-              line.trim() === "",
+            (line) => CLIENT_IMPORT.test(line.trim()) || line.trim() === "",
           );
         if (!onlyImports)
           offenders.push(
@@ -299,6 +327,12 @@ check("wrangler serves ./dist", () => {
     ? null
     : "wrangler.jsonc must serve ./dist with not_found_handling: 404-page.";
 });
+
+check("wrangler has a previews block", () =>
+  /"previews"\s*:/.test(read("wrangler.jsonc"))
+    ? null
+    : 'wrangler.jsonc needs "previews": {}. Without it `wrangler preview` (the Workers Builds Previews command) fails on every non-production branch.',
+);
 
 check("agent docs are in place", () => {
   if (!existsSync(join(root, "AGENTS.md"))) return "AGENTS.md is missing.";

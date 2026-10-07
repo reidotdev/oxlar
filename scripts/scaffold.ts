@@ -119,7 +119,7 @@ async function askSecret(envKey: string, label: string): Promise<string> {
 }
 
 type Decision = "yes" | "no" | "later";
-/** Yes/no/later for a step. `true`=do it, `false`=skip, "later"=defer to the closing list. Absent means no when headless. */
+/** Yes/no/later for a step. `true`=do it, `false`=skip, "later"=defer to the closing list. Absent means `fallback` (no unless given): headless it is the answer, at the prompt it is what Enter picks. */
 async function decide(
   key: string,
   label: string,
@@ -130,14 +130,18 @@ async function decide(
   if (given === false) return "no";
   if (given === "later") return "later";
   if (NON_INTERACTIVE) return fallback;
-  const answer = (await question(`${label} ${c.dim("[y/N/later]")}: `))
+  const yesByDefault = fallback === "yes";
+  const answer = (
+    await question(
+      `${label} ${c.dim(yesByDefault ? "[Y/n/later]" : "[y/N/later]")}: `,
+    )
+  )
     .trim()
     .toLowerCase();
-  return answer === "y" || answer === "yes"
-    ? "yes"
-    : answer === "later" || answer === "l"
-      ? "later"
-      : "no";
+  if (answer === "later" || answer === "l") return "later";
+  if (answer === "y" || answer === "yes") return "yes";
+  if (answer === "n" || answer === "no") return "no";
+  return yesByDefault ? "yes" : "no";
 }
 
 const todos: { what: string; how: string }[] = [];
@@ -275,6 +279,54 @@ function writeStudioEnv(projectId: string, dataset: string) {
   )
     return;
   writeFileSync(path, wanted);
+}
+
+// --- Studio config ----------------------------------------------------------
+
+const STUDIO_CONFIG = "studio/sanity.config.ts";
+const STUDIO_CLI = "studio/sanity.cli.ts";
+
+/**
+ * The Studio's workspace title, shown in its navbar and the browser tab.
+ * Replaces only the template's "oxlar", so a title the user set survives a
+ * re-run.
+ */
+export function setStudioTitle(text: string, title: string): string {
+  return text.replace(
+    /^(\s*title:\s*)"oxlar"(,?)$/m,
+    (_m, pre: string, comma: string) =>
+      `${pre}${JSON.stringify(title)}${comma}`,
+  );
+}
+
+/**
+ * `sanity deploy` without deployment.appId creates an application and prints
+ * "Add appId: '<id>'" so the next deploy does not ask for it. Reads that id
+ * and writes it into sanity.cli.ts. Returns the id, or undefined when the
+ * output has none or the file already sets one.
+ */
+export function addStudioAppId(
+  text: string,
+  output: string,
+): { text: string; appId?: string } {
+  const plain = output.replace(/\x1b\[[0-9;]*m/g, "");
+  const appId = /Add appId:\s*'([A-Za-z0-9_-]+)'/.exec(plain)?.[1];
+  if (!appId || /\bdeployment\s*:/.test(text)) return { text };
+  const next = text.replace(
+    /^(\s*)(studioHost:.*\n)/m,
+    (_m, indent: string, line: string) =>
+      `${indent}${line}${indent}// Written by the scaffold after the first \`sanity deploy\`.\n${indent}deployment: { appId: ${JSON.stringify(appId)} },\n`,
+  );
+  return next === text ? { text } : { text: next, appId };
+}
+
+function writeStudioAppId(output: string): string | undefined {
+  const { text, appId } = addStudioAppId(
+    readFileSync(STUDIO_CLI, "utf8"),
+    output,
+  );
+  if (appId) writeFileSync(STUDIO_CLI, text);
+  return appId;
 }
 
 // --- Optional modules -------------------------------------------------------
@@ -680,11 +732,23 @@ async function sanityStep(
     slugify(name),
   );
   const deployCmd = `SANITY_PROJECT_ID=${projectId} pnpm --filter oxlar-studio exec sanity deploy --yes --url ${host}`;
+  const appIdTodo = `the first deploy prints "Add appId: '<id>'": put deployment: { appId: "<id>" } in studio/sanity.cli.ts and commit it, so later deploys do not ask`;
   if (deploy === "yes") {
-    if (!studio(["deploy", "--yes", "--url", host], env).ok)
-      defer("Deploy the Studio", deployCmd);
-    else record("studio deploy", true, `https://${host}.sanity.studio`);
-  } else if (deploy === "later") defer("Deploy the Studio", deployCmd);
+    const deployed = studio(["deploy", "--yes", "--url", host], env);
+    if (!deployed.ok)
+      defer("Deploy the Studio", `${deployCmd}   # ${appIdTodo}`);
+    else {
+      record("studio deploy", true, `https://${host}.sanity.studio`);
+      const appId = writeStudioAppId(deployed.stdout + deployed.stderr);
+      if (appId)
+        console.log(
+          c.green(`  Studio app id ${appId} saved to studio/sanity.cli.ts`),
+        );
+      else if (!/appId\s*:/.test(readFileSync(STUDIO_CLI, "utf8")))
+        defer("Save the Studio's app id", appIdTodo);
+    }
+  } else if (deploy === "later")
+    defer("Deploy the Studio", `${deployCmd}   # ${appIdTodo}`);
 
   void siteUrl;
   return projectId;
@@ -708,6 +772,10 @@ const WEBHOOK_NAME = "Rebuild site";
 const BUILD_COMMAND =
   "pnpm run typecheck && pnpm run lint && pnpm run build && pnpm run perf:size";
 const DEPLOY_COMMAND = "pnpm exec wrangler deploy";
+// Non-production branches. Cloudflare's own default; it runs the project's
+// pinned wrangler from node_modules. Needs "previews" in wrangler.jsonc.
+const PREVIEW_COMMAND = "npx wrangler preview";
+const PREVIEW_MANUAL = `Worker, Settings, Builds, Branch control: tick Enable Preview Builds. Then run node scripts/scaffold.ts --deploy-only once, which gives the preview trigger the production build command and variables (or set them in the dashboard: build command ${BUILD_COMMAND}, Preview command ${PREVIEW_COMMAND}, and the same build variables as production).`;
 
 interface CfResponse<T> {
   success: boolean;
@@ -1014,6 +1082,67 @@ async function pushScaffoldChanges(name: string) {
   }
 }
 
+/** A Workers Builds trigger, as GET /builds/workers/{tag}/triggers lists it. */
+export interface Trigger {
+  trigger_uuid: string;
+  trigger_name?: string;
+  branch_includes?: string[];
+  branch_excludes?: string[];
+  build_command?: string;
+  deploy_command?: string;
+  deleted_on?: string | null;
+  repo_connection?: {
+    repo_id?: string | number;
+    repo_name?: string;
+    provider_account_name?: string;
+  };
+}
+
+/**
+ * Sorts a Worker's triggers into production (builds `branch` of this repo),
+ * previews (builds every branch, `*`, of this repo) and stray (anything else:
+ * another branch, another repo, an old connection). `extra` is true when there
+ * is more than one of a kind or any stray, the state in which a push can
+ * build with settings other than the ones the dashboard shows.
+ */
+export function sortTriggers(
+  triggers: Trigger[],
+  branch: string,
+  repoId: string,
+) {
+  const sameRepo = (t: Trigger) =>
+    t.repo_connection?.repo_id === undefined ||
+    String(t.repo_connection.repo_id) === repoId;
+  const includes = (t: Trigger) => t.branch_includes ?? [];
+  const production = triggers.filter(
+    (t) =>
+      sameRepo(t) && !includes(t).includes("*") && includes(t).includes(branch),
+  );
+  const previews = triggers.filter(
+    (t) => sameRepo(t) && includes(t).includes("*"),
+  );
+  const stray = triggers.filter(
+    (t) => !production.includes(t) && !previews.includes(t),
+  );
+  return {
+    all: triggers,
+    production,
+    previews,
+    stray,
+    extra: production.length > 1 || previews.length > 1 || stray.length > 0,
+  };
+}
+
+function describeTrigger(t: Trigger): string {
+  const repo = t.repo_connection?.repo_name
+    ? `${t.repo_connection.provider_account_name ?? "?"}/${t.repo_connection.repo_name}`
+    : "unknown repo";
+  const excl = t.branch_excludes?.length
+    ? ` except ${t.branch_excludes.join(", ")}`
+    : "";
+  return `"${t.trigger_name ?? t.trigger_uuid}": ${repo}, branches ${(t.branch_includes ?? []).join(", ") || "none"}${excl}; build: ${t.build_command || "(default)"}`;
+}
+
 /** Cloudflare Workers Builds + a deploy hook + the Sanity webhook. */
 async function buildsRoute(ctx: DeployContext) {
   const later = (what: string, note: string) => {
@@ -1083,11 +1212,16 @@ async function buildsRoute(ctx: DeployContext) {
       "api",
       "repos/{owner}/{repo}",
       "--jq",
-      "[.id, .name, .owner.id, .owner.login] | @tsv",
+      "[.id, .name, .owner.id, .owner.login, .default_branch] | @tsv",
     ],
     { capture: true },
   );
-  const [repoId, repoName, ownerId, ownerLogin] = gh.stdout.trim().split("\t");
+  const [repoId, repoName, ownerId, ownerLogin, defaultBranch] = gh.stdout
+    .trim()
+    .split("\t");
+  // The production branch: the dashboard's Connect defaults to the repo's
+  // default branch, so match that rather than assuming "main".
+  const branch = defaultBranch || "main";
   if (!gh.ok || !repoId || !repoName || !ownerId || !ownerLogin)
     return later(
       "Connect Workers Builds",
@@ -1136,7 +1270,7 @@ async function buildsRoute(ctx: DeployContext) {
     if (/disconnected/i.test(conn.error))
       return later(
         "Reconnect Cloudflare to GitHub",
-        `Cloudflare's link to the GitHub app is gone. dash.cloudflare.com, Workers & Pages, ${ctx.name}, Settings, Builds, Connect, GitHub; authorise again and pick ${ownerLogin}/${repoName}.`,
+        `Cloudflare's link to the GitHub app is gone. dash.cloudflare.com, Workers & Pages, ${ctx.name}, Settings, Builds, Connect, GitHub; authorise again and pick ${ownerLogin}/${repoName} (production branch ${branch}). Connect creates its own build triggers with Cloudflare's default commands and no variables; the run below finds those and applies the settings to them (it adds none). If the run lists extra triggers, follow docs/publishing.md, Troubleshooting.`,
       );
     return later(
       "Give the Cloudflare GitHub app access to the repository",
@@ -1144,30 +1278,74 @@ async function buildsRoute(ctx: DeployContext) {
     );
   }
 
-  // Production trigger: reuse one that builds main, else create it.
-  type Trigger = { trigger_uuid: string; branch_includes: string[] };
-  const triggers = await cf<Trigger[]>(
+  // Triggers. Workers Builds keeps up to two per Worker: production (the
+  // production branch) and previews (every other branch, branch_includes
+  // ["*"]). Every trigger builds on push with its OWN commands and variables,
+  // so a second production trigger, or one left over from an earlier
+  // connection, keeps building with Cloudflare's defaults while the dashboard
+  // shows the settings of another. Never create one unless the list is known
+  // to have none, and say so when there are more than expected.
+  const listed = await cf<Trigger[]>(
     token,
     `${acc}/builds/workers/${worker.tag}/triggers`,
   );
-  let trigger = triggers.ok
-    ? triggers.result.find((t) => t.branch_includes.includes("main"))
-    : undefined;
-  if (trigger) {
-    // Connecting in the dashboard creates a trigger with its own guessed
-    // commands; align it with deploy.yml's checks.
-    const patched = await cf(
-      token,
-      `${acc}/builds/triggers/${trigger.trigger_uuid}`,
-      {
-        method: "PATCH",
-        body: { build_command: BUILD_COMMAND, deploy_command: DEPLOY_COMMAND },
-      },
+  if (!listed.ok)
+    return later(
+      "Configure the Workers Builds triggers",
+      `Could not list the Worker's build triggers (${listed.error}). Nothing was created, so no duplicate trigger can appear.`,
     );
+  const sorted = sortTriggers(
+    listed.result.filter((t) => !t.deleted_on),
+    branch,
+    repoId,
+  );
+  const reconnect = `Worker ${ctx.name}, Settings, Builds: Disconnect, then Connect again and pick ${ownerLogin}/${repoName} (production branch ${branch}).`;
+  if (sorted.extra) {
     console.log(
-      patched.ok
-        ? c.green("  existing build trigger for main updated (commands)")
-        : c.yellow(`  could not update the build commands: ${patched.error}`),
+      c.yellow(
+        `  ${ctx.name} has build triggers that do not fit "one for ${branch}, one for previews". Each of them builds on push with its own settings:`,
+      ),
+    );
+    for (const t of sorted.all)
+      console.log(c.yellow(`    ${describeTrigger(t)}`));
+    defer(
+      "Remove the extra Workers Builds triggers (builds can ignore the settings the dashboard shows)",
+      `${reconnect} Then run node scripts/scaffold.ts --deploy-only once, to apply the settings to the triggers Connect creates. docs/publishing.md, Troubleshooting.`,
+    );
+  }
+
+  const production = sorted.production;
+  if (production.length) {
+    // Connecting in the dashboard creates triggers with guessed commands and
+    // no variables; align them with deploy.yml's checks.
+    for (const t of production) {
+      const patched = await cf(
+        token,
+        `${acc}/builds/triggers/${t.trigger_uuid}`,
+        {
+          method: "PATCH",
+          body: {
+            build_command: BUILD_COMMAND,
+            deploy_command: DEPLOY_COMMAND,
+          },
+        },
+      );
+      console.log(
+        patched.ok
+          ? c.green(
+              `  build trigger "${t.trigger_name ?? t.trigger_uuid}" (${branch}) updated: commands`,
+            )
+          : c.yellow(
+              `  could not update the build commands of "${t.trigger_name ?? t.trigger_uuid}": ${patched.error}`,
+            ),
+      );
+    }
+  } else if (sorted.stray.length) {
+    // A trigger exists but not for this branch or this repository. Adding one
+    // would make another trigger that builds on push; let the user decide.
+    return later(
+      "Reconnect the Worker to the repository",
+      `No build trigger for ${branch} of ${ownerLogin}/${repoName}, but other triggers exist (listed above). ${reconnect}`,
     );
   } else {
     const made = await cf<Trigger>(token, `${acc}/builds/triggers`, {
@@ -1176,21 +1354,104 @@ async function buildsRoute(ctx: DeployContext) {
         external_script_id: worker.tag,
         repo_connection_uuid: conn.result.repo_connection_uuid,
         build_token_uuid: buildToken.build_token_uuid,
-        trigger_name: "Deploy main",
+        trigger_name: `Deploy ${branch}`,
         build_command: BUILD_COMMAND,
         deploy_command: DEPLOY_COMMAND,
         root_directory: "/",
-        branch_includes: ["main"],
+        branch_includes: [branch],
         branch_excludes: [],
         path_includes: ["*"],
         path_excludes: [],
       },
     });
     if (!made.ok) return later("Create the Workers Builds trigger", made.error);
-    trigger = made.result;
+    production.push(made.result);
     console.log(
-      c.green(`  Workers Builds connected to ${ownerLogin}/${repoName} (main)`),
+      c.green(
+        `  Workers Builds connected to ${ownerLogin}/${repoName} (${branch})`,
+      ),
     );
+  }
+  const trigger = production[0]!;
+
+  // Previews: every other branch (pull requests). The dashboard's Connect
+  // creates this trigger with `pnpm run build` and no variables, and
+  // astro.config.mjs then fails on the missing PUBLIC_SITE_URL. Give it the
+  // same build command and variables as production; it deploys a Preview
+  // (`wrangler preview`, which needs the "previews" block in wrangler.jsonc),
+  // never the live site.
+  const previews = sorted.previews;
+  if (previews.length) {
+    for (const t of previews) {
+      // A Worker connected before Worker Previews may still use the old
+      // `wrangler versions upload` model; switching is a one-way dashboard
+      // step, so keep that command.
+      const deploy_command = /wrangler\s+versions\s+upload/.test(
+        t.deploy_command ?? "",
+      )
+        ? t.deploy_command
+        : PREVIEW_COMMAND;
+      const patched = await cf(
+        token,
+        `${acc}/builds/triggers/${t.trigger_uuid}`,
+        {
+          method: "PATCH",
+          body: { build_command: BUILD_COMMAND, deploy_command },
+        },
+      );
+      console.log(
+        patched.ok
+          ? c.green(
+              `  build trigger "${t.trigger_name ?? t.trigger_uuid}" (previews) updated: commands`,
+            )
+          : c.yellow(
+              `  could not update the preview build commands of "${t.trigger_name ?? t.trigger_uuid}": ${patched.error}`,
+            ),
+      );
+      if (!patched.ok)
+        defer(
+          "Set the Previews build command (Worker, Settings, Builds, Previews)",
+          `Build command: ${BUILD_COMMAND}   Preview command: ${PREVIEW_COMMAND}`,
+        );
+    }
+  } else if (!sorted.stray.length) {
+    const wantPreviews = await decide(
+      "cloudflare.previewBuilds",
+      "  Also build every other branch (pull requests) as a Preview, on its own URL?",
+      // On unless the config says false: without it, branch builds either
+      // do not run or run with Cloudflare's defaults.
+      "yes",
+    );
+    if (wantPreviews === "yes") {
+      const made = await cf<Trigger>(token, `${acc}/builds/triggers`, {
+        method: "POST",
+        body: {
+          external_script_id: worker.tag,
+          repo_connection_uuid: conn.result.repo_connection_uuid,
+          build_token_uuid: buildToken.build_token_uuid,
+          trigger_name: "Deploy previews",
+          build_command: BUILD_COMMAND,
+          deploy_command: PREVIEW_COMMAND,
+          root_directory: "/",
+          branch_includes: ["*"],
+          branch_excludes: [branch],
+          path_includes: ["*"],
+          path_excludes: [],
+        },
+      });
+      if (made.ok) {
+        previews.push(made.result);
+        console.log(
+          c.green(`  preview builds on for every branch except ${branch}`),
+        );
+      } else {
+        console.log(
+          c.yellow(`  could not create the preview trigger: ${made.error}`),
+        );
+        defer("Turn on preview builds", PREVIEW_MANUAL);
+      }
+    } else if (wantPreviews === "later")
+      defer("Turn on preview builds", PREVIEW_MANUAL);
   }
 
   // Build variables: the same names deploy.yml reads. Values bare.
@@ -1212,20 +1473,30 @@ async function buildsRoute(ctx: DeployContext) {
       value: readFileSync(".nvmrc", "utf8").trim(),
       is_secret: false,
     };
-  const setVars = await cf(
-    token,
-    `${acc}/builds/triggers/${trigger.trigger_uuid}/environment_variables`,
-    {
-      method: "PATCH",
-      body: vars,
-    },
-  );
-  console.log(
-    setVars.ok
-      ? c.green(`  build variables set: ${Object.keys(vars).join(", ")}`)
-      : c.yellow(`  could not set build variables: ${setVars.error}`),
-  );
-  if (!setVars.ok)
+  // Variables belong to a trigger, not to the Worker: set them on each one,
+  // previews included (the same values; PUBLIC_SITE_URL stays the production
+  // URL, so a Preview's canonical links point at the live site).
+  let varsSet = true;
+  for (const t of [...production, ...previews]) {
+    const setVars = await cf(
+      token,
+      `${acc}/builds/triggers/${t.trigger_uuid}/environment_variables`,
+      { method: "PATCH", body: vars },
+    );
+    if (!setVars.ok) {
+      varsSet = false;
+      console.log(
+        c.yellow(
+          `  could not set build variables on "${t.trigger_name ?? t.trigger_uuid}": ${setVars.error}`,
+        ),
+      );
+    }
+  }
+  if (varsSet)
+    console.log(
+      c.green(`  build variables set: ${Object.keys(vars).join(", ")}`),
+    );
+  else
     defer(
       "Set the Workers Builds variables (Worker, Settings, Builds)",
       Object.keys(vars).join(", "),
@@ -1245,7 +1516,7 @@ async function buildsRoute(ctx: DeployContext) {
   if (!hook) {
     const made = await cf<Hook>(token, hooksPath, {
       method: "POST",
-      body: { deploy_hook_name: HOOK_NAME, branch: "main" },
+      body: { deploy_hook_name: HOOK_NAME, branch },
     });
     if (!made.ok)
       return later(
@@ -1312,7 +1583,7 @@ async function buildsRoute(ctx: DeployContext) {
       `${acc}/builds/triggers/${trigger.trigger_uuid}/builds`,
       {
         method: "POST",
-        body: { branch: "main" },
+        body: { branch },
       },
     );
     console.log(
@@ -1481,6 +1752,19 @@ async function main() {
       c.green(`  named the project ${name} (package.json, wrangler.jsonc)`),
     );
   } else console.log(c.dim("  package name already set, left as is"));
+  // The Studio's workspace title. Checked on its own, so a project renamed
+  // before the scaffold set it still gets it on a re-run.
+  const studioTitle = rawName.trim() || name;
+  if (studioTitle !== "oxlar") {
+    const cfg = readFileSync(STUDIO_CONFIG, "utf8");
+    const titled = setStudioTitle(cfg, studioTitle);
+    if (titled !== cfg) {
+      writeFileSync(STUDIO_CONFIG, titled);
+      console.log(
+        c.green(`  titled the Studio "${studioTitle}" (${STUDIO_CONFIG})`),
+      );
+    }
+  }
   void description;
 
   // 2. Install

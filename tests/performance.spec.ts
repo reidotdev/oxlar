@@ -70,12 +70,13 @@ test("INP: interactions respond in under 150 ms", async ({ page }) => {
 
 test("images always have dimensions and there are no third-party requests", async ({
   page,
+  baseURL,
 }) => {
   const external: string[] = [];
   page.on(
     "request",
     (r) =>
-      !r.url().startsWith("http://localhost:4321") &&
+      !r.url().startsWith(String(baseURL)) &&
       !r.url().startsWith("data:") &&
       external.push(r.url()),
   );

@@ -25,6 +25,8 @@ pnpm --filter oxlar-studio deploy
 
 This runs `sanity deploy` and publishes the Studio at `https://<studio-host>.sanity.studio`. Set `SANITY_STUDIO_HOST` (see `studio/sanity.cli.ts`) for a stable hostname. Or host `studio/` as its own Cloudflare site: `pnpm --filter oxlar-studio build` outputs `studio/dist`.
 
+The first deploy registers the Studio as an application and prints `Add appId: '<id>'`. Put it in `studio/sanity.cli.ts` as `deployment: { appId: "<id>" }` and commit it, or every later deploy asks for it again. When `pnpm scaffold` deploys the Studio it writes this for you. The workspace title the Studio shows comes from `title` in `studio/sanity.config.ts`; the scaffold sets it to the project name.
+
 Allow the Studio origin **with credentials** on the project, or logging in loops:
 
 ```bash
@@ -58,17 +60,31 @@ These two things are done by hand once and reused by every site:
 Run `pnpm scaffold`, or on an existing project `node scripts/scaffold.ts --deploy-only`. It needs the Worker deployed once (the hosting step does that), the GitHub repository, the `gh` CLI and the Sanity CLI logged in. It then:
 
 1. commits and pushes what the scaffold changed (the Worker name and domain route in `wrangler.jsonc`, any modules), after asking, because Cloudflare builds from GitHub;
-2. connects the repository to the Worker (production branch `main`);
+2. connects the repository to the Worker (the production branch is the repository's default branch, usually `main`);
 3. sets the build command to the same checks `deploy.yml` runs (`pnpm run typecheck && pnpm run lint && pnpm run build && pnpm run perf:size`) and the deploy command to `pnpm exec wrangler deploy`;
 4. sets the build variables from `.env`: `PUBLIC_SITE_URL`, `SANITY_PROJECT_ID`, `SANITY_DATASET`, `NODE_VERSION` from `.nvmrc`, plus `SANITY_API_VERSION`, `PUBLIC_STYLEGUIDE` and `SANITY_READ_TOKEN` (as a secret) when present;
-5. creates a deploy hook named `sanity-publish` for `main`;
+   - **preview builds** (every other branch, so pull requests get a Preview URL): the same build command and variables, with the Preview command `npx wrangler preview`. An existing preview trigger (the dashboard's Connect creates one) is always updated; when there is none, the scaffold creates it. This is on by default (the prompt defaults to yes, and a headless run creates it); `"previewBuilds": false` under `cloudflare` in the config file, or answering `n`, skips it. `wrangler preview` needs the `"previews": {}` block that `wrangler.jsonc` ships with. `PUBLIC_SITE_URL` stays the production URL, so a Preview's canonical links point at the live site;
+5. creates a deploy hook named `sanity-publish` for the production branch;
 6. creates the Sanity webhook `Rebuild site` pointing at the hook, using your Sanity CLI login. It also finds an older webhook that still calls GitHub and offers to delete it;
 7. offers to delete the GitHub `PUBLIC_SITE_URL` variable, so `deploy.yml` stops deploying as well;
 8. optionally starts a first build.
 
-Every step is idempotent: re-running keeps what exists, and a trigger created in the dashboard gets the commands above. Anything it cannot do goes to the closing to-do list.
+Every step is idempotent: re-running keeps what exists. Anything it cannot do goes to the closing to-do list.
 
-To do it by hand instead: connect the Worker in the dashboard (Settings, Builds), set the same commands and variables, create the deploy hook (Settings, Builds, Deploy Hooks), then a Sanity webhook with the hook URL, method `POST`, the filter shown under the GitHub Actions route, drafts off and no headers.
+### Build triggers
+
+Workers Builds stores the settings above on a _trigger_, not on the Worker. A Worker has up to two: one for the production branch and one for every other branch (previews). Each trigger has its own build command, deploy command and variables, and each one builds on push.
+
+The scaffold lists the Worker's triggers and updates the ones it finds. It creates the production trigger only when the list is empty, so it never adds a second one. When it finds more than it expects (two for the production branch, or one left from another repository or an older connection), it lists them and stops short of guessing: see "Builds ignore the settings shown in the dashboard" under Troubleshooting.
+
+### If you connect in the dashboard
+
+Connecting in the dashboard (Worker, Settings, Builds, Connect) creates the triggers itself, with Cloudflare's default commands (`pnpm run build`) and no variables. Then pick one:
+
+- **Run `node scripts/scaffold.ts --deploy-only` once.** It finds those triggers and applies the commands and variables to them. Do not connect again afterwards: a new Connect creates new triggers with the defaults.
+- **Or enter everything in the dashboard** (Settings, Builds: build command, deploy command, variables, for production and for previews), and do not run `--deploy-only`.
+
+To do it by hand instead: connect the Worker in the dashboard (Settings, Builds), set the same commands and variables for production **and** for previews (the Previews settings are separate: build command, Preview command `npx wrangler preview`, and their own variables), create the deploy hook (Settings, Builds, Deploy Hooks), then a Sanity webhook with the hook URL, method `POST`, the filter shown under the GitHub Actions route, drafts off and no headers.
 
 ### Test it
 
@@ -193,5 +209,8 @@ Then check the Actions tab for a `Deploy` run triggered by `repository_dispatch`
 - **Every publish deploys twice**: both routes are active. Delete the `PUBLIC_SITE_URL` repository variable (Workers Builds route), or disconnect the Worker from Git (GitHub Actions route).
 - **Workers Builds: "Invalid token"**: the API token used by the scaffold is an account token, or lacks _Workers Builds Configuration: Edit_. Create a user token with the two permissions listed above.
 - **Workers Builds: "This project is disconnected from your Git account"**: Cloudflare's link to the GitHub app is gone (uninstalled, installed from GitHub's side, or removed with its only repository). Connect again from the Cloudflare dashboard (Worker, Settings, Builds, Connect, GitHub), then run `node scripts/scaffold.ts --deploy-only`.
+- **Workers Builds: branch or pull-request builds fail with "PUBLIC_SITE_URL is not set"**: the preview trigger has Cloudflare's defaults (`pnpm run build`, no variables). Run `node scripts/scaffold.ts --deploy-only`, or copy the build command and every build variable from the production settings to the Previews settings in the dashboard.
+- **Workers Builds: `wrangler preview` fails with "missing a `previews` block"**: `wrangler.jsonc` lost its `"previews": {}` entry. Put it back (`pnpm verify:template` checks for it).
+- **Workers Builds: builds ignore the settings shown in the dashboard** (every push builds with `pnpm run build` and no variables, or fails with "PUBLIC_SITE_URL is not set", while the build settings page shows the scaffold's commands): the Worker has more than one trigger for the same branches, usually one left by an earlier connection next to the one the scaffold or the dashboard set up. The scaffold lists the triggers it finds when this happens. Fix: Worker, Settings, Builds, Disconnect; then Connect again and pick the repository; then run `node scripts/scaffold.ts --deploy-only` once (or enter the settings in the dashboard instead, not both). Check the first build's log shows the scaffold's build command.
 - **Workers Builds: no build token, or the repository is not found**: the one-time GitHub connection is missing, or the Cloudflare GitHub app has no access to this repository (GitHub, Settings, Applications, Cloudflare Workers and Pages, Configure).
 - **Changes appear late**: Sanity's API CDN can serve a cached read for a few seconds after publish. A second run, or `useCdn: false`, removes this at the cost of speed.
