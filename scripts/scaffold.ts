@@ -708,6 +708,10 @@ const WEBHOOK_NAME = "Rebuild site";
 const BUILD_COMMAND =
   "pnpm run typecheck && pnpm run lint && pnpm run build && pnpm run perf:size";
 const DEPLOY_COMMAND = "pnpm exec wrangler deploy";
+// Non-production branches. Cloudflare's own default; it runs the project's
+// pinned wrangler from node_modules. Needs "previews" in wrangler.jsonc.
+const PREVIEW_COMMAND = "npx wrangler preview";
+const PREVIEW_MANUAL = `Worker, Settings, Builds, Branch control: tick Enable Preview Builds. Then run node scripts/scaffold.ts --deploy-only once, which gives the preview trigger the production build command and variables (or set them in the dashboard: build command ${BUILD_COMMAND}, Preview command ${PREVIEW_COMMAND}, and the same build variables as production).`;
 
 interface CfResponse<T> {
   success: boolean;
@@ -1306,6 +1310,83 @@ async function buildsRoute(ctx: DeployContext) {
   }
   const trigger = production[0]!;
 
+  // Previews: every other branch (pull requests). The dashboard's Connect
+  // creates this trigger with `pnpm run build` and no variables, and
+  // astro.config.mjs then fails on the missing PUBLIC_SITE_URL. Give it the
+  // same build command and variables as production; it deploys a Preview
+  // (`wrangler preview`, which needs the "previews" block in wrangler.jsonc),
+  // never the live site.
+  const previews = sorted.previews;
+  if (previews.length) {
+    for (const t of previews) {
+      // A Worker connected before Worker Previews may still use the old
+      // `wrangler versions upload` model; switching is a one-way dashboard
+      // step, so keep that command.
+      const deploy_command = /wrangler\s+versions\s+upload/.test(
+        t.deploy_command ?? "",
+      )
+        ? t.deploy_command
+        : PREVIEW_COMMAND;
+      const patched = await cf(
+        token,
+        `${acc}/builds/triggers/${t.trigger_uuid}`,
+        {
+          method: "PATCH",
+          body: { build_command: BUILD_COMMAND, deploy_command },
+        },
+      );
+      console.log(
+        patched.ok
+          ? c.green(
+              `  build trigger "${t.trigger_name ?? t.trigger_uuid}" (previews) updated: commands`,
+            )
+          : c.yellow(
+              `  could not update the preview build commands of "${t.trigger_name ?? t.trigger_uuid}": ${patched.error}`,
+            ),
+      );
+      if (!patched.ok)
+        defer(
+          "Set the Previews build command (Worker, Settings, Builds, Previews)",
+          `Build command: ${BUILD_COMMAND}   Preview command: ${PREVIEW_COMMAND}`,
+        );
+    }
+  } else if (!sorted.stray.length) {
+    const wantPreviews = await decide(
+      "cloudflare.previewBuilds",
+      "  Also build every other branch (pull requests) as a Preview, on its own URL?",
+    );
+    if (wantPreviews === "yes") {
+      const made = await cf<Trigger>(token, `${acc}/builds/triggers`, {
+        method: "POST",
+        body: {
+          external_script_id: worker.tag,
+          repo_connection_uuid: conn.result.repo_connection_uuid,
+          build_token_uuid: buildToken.build_token_uuid,
+          trigger_name: "Deploy previews",
+          build_command: BUILD_COMMAND,
+          deploy_command: PREVIEW_COMMAND,
+          root_directory: "/",
+          branch_includes: ["*"],
+          branch_excludes: [branch],
+          path_includes: ["*"],
+          path_excludes: [],
+        },
+      });
+      if (made.ok) {
+        previews.push(made.result);
+        console.log(
+          c.green(`  preview builds on for every branch except ${branch}`),
+        );
+      } else {
+        console.log(
+          c.yellow(`  could not create the preview trigger: ${made.error}`),
+        );
+        defer("Turn on preview builds", PREVIEW_MANUAL);
+      }
+    } else if (wantPreviews === "later")
+      defer("Turn on preview builds", PREVIEW_MANUAL);
+  }
+
   // Build variables: the same names deploy.yml reads. Values bare.
   const env = readEnvFile();
   const vars: Record<string, { value: string; is_secret: boolean }> = {
@@ -1325,9 +1406,11 @@ async function buildsRoute(ctx: DeployContext) {
       value: readFileSync(".nvmrc", "utf8").trim(),
       is_secret: false,
     };
-  // Variables belong to a trigger, not to the Worker: set them on each one.
+  // Variables belong to a trigger, not to the Worker: set them on each one,
+  // previews included (the same values; PUBLIC_SITE_URL stays the production
+  // URL, so a Preview's canonical links point at the live site).
   let varsSet = true;
-  for (const t of production) {
+  for (const t of [...production, ...previews]) {
     const setVars = await cf(
       token,
       `${acc}/builds/triggers/${t.trigger_uuid}/environment_variables`,
