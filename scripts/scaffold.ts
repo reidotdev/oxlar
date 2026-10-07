@@ -119,7 +119,7 @@ async function askSecret(envKey: string, label: string): Promise<string> {
 }
 
 type Decision = "yes" | "no" | "later";
-/** Yes/no/later for a step. `true`=do it, `false`=skip, "later"=defer to the closing list. Absent means no when headless. */
+/** Yes/no/later for a step. `true`=do it, `false`=skip, "later"=defer to the closing list. Absent means `fallback` (no unless given): headless it is the answer, at the prompt it is what Enter picks. */
 async function decide(
   key: string,
   label: string,
@@ -130,14 +130,18 @@ async function decide(
   if (given === false) return "no";
   if (given === "later") return "later";
   if (NON_INTERACTIVE) return fallback;
-  const answer = (await question(`${label} ${c.dim("[y/N/later]")}: `))
+  const yesByDefault = fallback === "yes";
+  const answer = (
+    await question(
+      `${label} ${c.dim(yesByDefault ? "[Y/n/later]" : "[y/N/later]")}: `,
+    )
+  )
     .trim()
     .toLowerCase();
-  return answer === "y" || answer === "yes"
-    ? "yes"
-    : answer === "later" || answer === "l"
-      ? "later"
-      : "no";
+  if (answer === "later" || answer === "l") return "later";
+  if (answer === "y" || answer === "yes") return "yes";
+  if (answer === "n" || answer === "no") return "no";
+  return yesByDefault ? "yes" : "no";
 }
 
 const todos: { what: string; how: string }[] = [];
@@ -1414,6 +1418,9 @@ async function buildsRoute(ctx: DeployContext) {
     const wantPreviews = await decide(
       "cloudflare.previewBuilds",
       "  Also build every other branch (pull requests) as a Preview, on its own URL?",
+      // On unless the config says false: without it, branch builds either
+      // do not run or run with Cloudflare's defaults.
+      "yes",
     );
     if (wantPreviews === "yes") {
       const made = await cf<Trigger>(token, `${acc}/builds/triggers`, {

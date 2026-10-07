@@ -50,7 +50,7 @@
     "deploy: true builds and runs `wrangler deploy` (needs wrangler logged in). \"later\" prints the commands.",
     "autoDeploy: \"1\" Workers Builds + deploy hook + Sanity webhook (default), \"2\" GitHub Actions, \"3\" later.",
     "Workers Builds reads its API token from CLOUDFLARE_BUILDS_TOKEN in the environment, never from this file. See docs/publishing.md.",
-    "previewBuilds: true also builds every other branch as a Preview (same build command and variables, `wrangler preview`). An existing preview trigger is always updated.",
+    "previewBuilds (default true) also builds every other branch as a Preview (same build command and variables, `wrangler preview`). false skips creating one; an existing preview trigger is always updated.",
     "firstBuild: true starts a Workers build at the end of the step."
   ],
   "cloudflare": {
