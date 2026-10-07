@@ -8,4 +8,7 @@
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "404-page",
   },
+  // `wrangler preview` (the default Previews command in Workers Builds) refuses
+  // to run without this block. Empty is enough: there are no bindings.
+  "previews": {},
 }

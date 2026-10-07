@@ -300,6 +300,12 @@ check("wrangler serves ./dist", () => {
     : "wrangler.jsonc must serve ./dist with not_found_handling: 404-page.";
 });
 
+check("wrangler has a previews block", () =>
+  /"previews"\s*:/.test(read("wrangler.jsonc"))
+    ? null
+    : 'wrangler.jsonc needs "previews": {}. Without it `wrangler preview` (the Workers Builds Previews command) fails on every non-production branch.',
+);
+
 check("agent docs are in place", () => {
   if (!existsSync(join(root, "AGENTS.md"))) return "AGENTS.md is missing.";
   if (!/AGENTS\.md/.test(read("CLAUDE.md")))

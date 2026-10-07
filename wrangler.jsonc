@@ -8,4 +8,8 @@
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "404-page",
   },
+  // Workers Builds runs `npx wrangler preview` for every branch other than the
+  // production one, and that command refuses to run without this block. Empty
+  // is enough: a static-assets Worker has no bindings or vars to override.
+  "previews": {},
 }
