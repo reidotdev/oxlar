@@ -25,6 +25,8 @@ pnpm --filter oxlar-studio deploy
 
 This runs `sanity deploy` and publishes the Studio at `https://<studio-host>.sanity.studio`. Set `SANITY_STUDIO_HOST` (see `studio/sanity.cli.ts`) for a stable hostname. Or host `studio/` as its own Cloudflare site: `pnpm --filter oxlar-studio build` outputs `studio/dist`.
 
+The first deploy registers the Studio as an application and prints `Add appId: '<id>'`. Put it in `studio/sanity.cli.ts` as `deployment: { appId: "<id>" }` and commit it, or every later deploy asks for it again. When `pnpm scaffold` deploys the Studio it writes this for you. The workspace title the Studio shows comes from `title` in `studio/sanity.config.ts`; the scaffold sets it to the project name.
+
 Allow the Studio origin **with credentials** on the project, or logging in loops:
 
 ```bash

@@ -277,6 +277,54 @@ function writeStudioEnv(projectId: string, dataset: string) {
   writeFileSync(path, wanted);
 }
 
+// --- Studio config ----------------------------------------------------------
+
+const STUDIO_CONFIG = "studio/sanity.config.ts";
+const STUDIO_CLI = "studio/sanity.cli.ts";
+
+/**
+ * The Studio's workspace title, shown in its navbar and the browser tab.
+ * Replaces only the template's "oxlar", so a title the user set survives a
+ * re-run.
+ */
+export function setStudioTitle(text: string, title: string): string {
+  return text.replace(
+    /^(\s*title:\s*)"oxlar"(,?)$/m,
+    (_m, pre: string, comma: string) =>
+      `${pre}${JSON.stringify(title)}${comma}`,
+  );
+}
+
+/**
+ * `sanity deploy` without deployment.appId creates an application and prints
+ * "Add appId: '<id>'" so the next deploy does not ask for it. Reads that id
+ * and writes it into sanity.cli.ts. Returns the id, or undefined when the
+ * output has none or the file already sets one.
+ */
+export function addStudioAppId(
+  text: string,
+  output: string,
+): { text: string; appId?: string } {
+  const plain = output.replace(/\x1b\[[0-9;]*m/g, "");
+  const appId = /Add appId:\s*'([A-Za-z0-9_-]+)'/.exec(plain)?.[1];
+  if (!appId || /\bdeployment\s*:/.test(text)) return { text };
+  const next = text.replace(
+    /^(\s*)(studioHost:.*\n)/m,
+    (_m, indent: string, line: string) =>
+      `${indent}${line}${indent}// Written by the scaffold after the first \`sanity deploy\`.\n${indent}deployment: { appId: ${JSON.stringify(appId)} },\n`,
+  );
+  return next === text ? { text } : { text: next, appId };
+}
+
+function writeStudioAppId(output: string): string | undefined {
+  const { text, appId } = addStudioAppId(
+    readFileSync(STUDIO_CLI, "utf8"),
+    output,
+  );
+  if (appId) writeFileSync(STUDIO_CLI, text);
+  return appId;
+}
+
 // --- Optional modules -------------------------------------------------------
 
 interface Module {
@@ -680,11 +728,23 @@ async function sanityStep(
     slugify(name),
   );
   const deployCmd = `SANITY_PROJECT_ID=${projectId} pnpm --filter oxlar-studio exec sanity deploy --yes --url ${host}`;
+  const appIdTodo = `the first deploy prints "Add appId: '<id>'": put deployment: { appId: "<id>" } in studio/sanity.cli.ts and commit it, so later deploys do not ask`;
   if (deploy === "yes") {
-    if (!studio(["deploy", "--yes", "--url", host], env).ok)
-      defer("Deploy the Studio", deployCmd);
-    else record("studio deploy", true, `https://${host}.sanity.studio`);
-  } else if (deploy === "later") defer("Deploy the Studio", deployCmd);
+    const deployed = studio(["deploy", "--yes", "--url", host], env);
+    if (!deployed.ok)
+      defer("Deploy the Studio", `${deployCmd}   # ${appIdTodo}`);
+    else {
+      record("studio deploy", true, `https://${host}.sanity.studio`);
+      const appId = writeStudioAppId(deployed.stdout + deployed.stderr);
+      if (appId)
+        console.log(
+          c.green(`  Studio app id ${appId} saved to studio/sanity.cli.ts`),
+        );
+      else if (!/appId\s*:/.test(readFileSync(STUDIO_CLI, "utf8")))
+        defer("Save the Studio's app id", appIdTodo);
+    }
+  } else if (deploy === "later")
+    defer("Deploy the Studio", `${deployCmd}   # ${appIdTodo}`);
 
   void siteUrl;
   return projectId;
@@ -1685,6 +1745,19 @@ async function main() {
       c.green(`  named the project ${name} (package.json, wrangler.jsonc)`),
     );
   } else console.log(c.dim("  package name already set, left as is"));
+  // The Studio's workspace title. Checked on its own, so a project renamed
+  // before the scaffold set it still gets it on a re-run.
+  const studioTitle = rawName.trim() || name;
+  if (studioTitle !== "oxlar") {
+    const cfg = readFileSync(STUDIO_CONFIG, "utf8");
+    const titled = setStudioTitle(cfg, studioTitle);
+    if (titled !== cfg) {
+      writeFileSync(STUDIO_CONFIG, titled);
+      console.log(
+        c.green(`  titled the Studio "${studioTitle}" (${STUDIO_CONFIG})`),
+      );
+    }
+  }
   void description;
 
   // 2. Install
