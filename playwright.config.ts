@@ -25,6 +25,10 @@ export default defineConfig({
     url: `http://localhost:${port}`,
     reuseExistingServer: !process.env["CI"],
     timeout: 180_000,
-    env: { PUBLIC_SITE_URL: `http://localhost:${port}` },
+    // The specs assert the demo content in src/lib/sanity/fixtures.ts. An
+    // empty SANITY_PROJECT_ID wins over the one `pnpm scaffold` writes to .env
+    // (process.loadEnvFile never overrides a variable that is set, even to ""),
+    // so a fresh, empty Sanity project cannot fail the suite.
+    env: { PUBLIC_SITE_URL: `http://localhost:${port}`, SANITY_PROJECT_ID: "" },
   },
 });

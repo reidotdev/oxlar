@@ -57,6 +57,8 @@ Use `pnpm run <name>` when in doubt: `pnpm <name>` prefers pnpm's own built-in c
 
 With a pre-installed browser (no `playwright install`), set `PW_CHROMIUM_PATH` to its executable.
 
+`pnpm test` always builds with the demo fixtures: `playwright.config.ts` sets `SANITY_PROJECT_ID` to empty for its web server, overriding `.env`, so a real (even empty) Sanity project never fails the suite.
+
 ## Directory map
 
 ```
