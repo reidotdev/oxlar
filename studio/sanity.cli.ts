@@ -22,7 +22,7 @@ const dataset =
 
 export default defineCliConfig({
   api: { projectId, dataset },
-  // Studio is hosted separately: `pnpm --filter oxlar-studio deploy`.
+  // Studio is hosted separately: `pnpm --filter oxlar-studio run deploy`.
   studioHost: process.env.SANITY_STUDIO_HOST || undefined,
   typegen: {
     path: "../src/lib/sanity/queries.ts",

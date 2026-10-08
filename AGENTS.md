@@ -48,7 +48,7 @@ Pinned versions live in `package.json` (exact, no `^`). Key ones: astro 6.4.8, g
 | Lighthouse budgets | `pnpm perf` (after a build; needs Chrome: set `CHROME_PATH`)               |
 | Sanity types       | `pnpm sanity:types` (extracts the schema and regenerates types)            |
 | Studio (local)     | `pnpm --filter oxlar-studio dev`                                           |
-| Studio (deploy)    | `pnpm --filter oxlar-studio deploy`                                        |
+| Studio (deploy)    | `pnpm --filter oxlar-studio run deploy`                                    |
 | Deploy the site    | `pnpm cf:deploy` (Workers Builds or CI normally does this)                 |
 | New project        | `pnpm scaffold` (or `--config scaffold.config.json --non-interactive`)     |
 | Deploy on publish  | `node scripts/scaffold.ts --deploy-only` (Workers Builds + Sanity webhook) |

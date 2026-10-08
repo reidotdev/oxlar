@@ -359,54 +359,88 @@ check("any .env present holds usable values", () => {
   return null;
 });
 
+// pnpm's own commands. `pnpm <name>` runs these instead of a script of the
+// same name. `start` and `test` are absent on purpose: pnpm's versions run the
+// matching script.
+const PNPM_BUILTINS = new Set([
+  "access",
+  "add",
+  "audit",
+  "bin",
+  "config",
+  "create",
+  "dedupe",
+  "deploy",
+  "dlx",
+  "doctor",
+  "env",
+  "exec",
+  "fetch",
+  "help",
+  "import",
+  "init",
+  "install",
+  "licenses",
+  "link",
+  "list",
+  "ln",
+  "outdated",
+  "pack",
+  "patch",
+  "prune",
+  "publish",
+  "rebuild",
+  "recursive",
+  "remove",
+  "root",
+  "run",
+  "server",
+  "setup",
+  "store",
+  "unlink",
+  "update",
+  "why",
+]);
+
 check("no package script is shadowed by a pnpm built-in", () => {
   // `pnpm <name>` runs pnpm's OWN command when one exists, silently. `pnpm setup`
-  // edited a shell profile instead of scaffolding. `start` and `test` are absent
-  // on purpose: pnpm's versions run the matching script.
-  const reserved = new Set([
-    "access",
-    "add",
-    "audit",
-    "bin",
-    "config",
-    "create",
-    "dedupe",
-    "deploy",
-    "dlx",
-    "doctor",
-    "env",
-    "exec",
-    "fetch",
-    "help",
-    "import",
-    "init",
-    "install",
-    "licenses",
-    "link",
-    "list",
-    "ln",
-    "outdated",
-    "pack",
-    "patch",
-    "prune",
-    "publish",
-    "rebuild",
-    "recursive",
-    "remove",
-    "root",
-    "run",
-    "server",
-    "setup",
-    "store",
-    "unlink",
-    "update",
-    "why",
-  ]);
+  // edited a shell profile instead of scaffolding.
   const shadowed = Object.keys(pkg.scripts ?? {}).filter((n) =>
-    reserved.has(n),
+    PNPM_BUILTINS.has(n),
   );
   return shadowed.length
     ? `Script(s) shadowed by a pnpm built-in: ${shadowed.join(", ")}. Rename them.`
+    : null;
+});
+
+check("docs call shadowed workspace scripts with `run`", () => {
+  // A workspace package may keep a script named like a built-in (the Studio's
+  // `deploy`). Filtered without `run`, pnpm runs its own `deploy` and fails
+  // with ERR_PNPM_INVALID_DEPLOY_TARGET. Docs must spell out `run`.
+  const studio = JSON.parse(read("studio/package.json")) as {
+    scripts?: Record<string, string>;
+  };
+  const shadowed = Object.keys(studio.scripts ?? {}).filter((n) =>
+    PNPM_BUILTINS.has(n),
+  );
+  if (!shadowed.length) return null;
+  const files = [
+    "AGENTS.md",
+    "README.md",
+    ...walk("docs", (p) => p.endsWith(".md")),
+    ...walk(".claude", (p) => p.endsWith(".md")),
+    ...walk(".github", (p) => /\.ya?ml$/.test(p)),
+    ...walk("scripts", (p) => p.endsWith(".ts")),
+    ...readdirSync(join(root, "studio"))
+      .filter((p) => /\.tsx?$/.test(p))
+      .map((p) => `studio/${p}`),
+  ].filter((p) => existsSync(join(root, p)));
+  const call = new RegExp(
+    `pnpm (?:--filter|-F)[ =]\\S+ (${shadowed.join("|")})\\b`,
+  );
+  const bad = files.filter((f) => call.test(read(f))).map(posix);
+  return bad.length
+    ? `${bad.join(", ")}: call ${shadowed.join(", ")} as \`pnpm --filter <pkg> run <script>\`; without \`run\` pnpm runs its built-in.`
     : null;
 });
 
