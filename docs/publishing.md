@@ -205,6 +205,7 @@ Then check the Actions tab for a `Deploy` run triggered by `repository_dispatch`
 - **`gh` says `accepts at most 1 arg(s), received 2`**: the command line carries an extra argument, usually an invisible character from a copied line, or an inline `# comment` (zsh passes `#` through as an argument in an interactive shell). Type the command by hand.
 - **Workflow does not start**: `repository_dispatch` only fires workflows on the default branch. Make sure `deploy.yml` is on `main`.
 - **Build fails after a publish**: the error names the document id (`[sanity] Document <id> failed validation`). Fix the content (missing alt text, slug, title) and publish again.
+- **Build fails with `TypeError: Invalid URL`** (often while rendering `/404`), or canonical links look wrong: `PUBLIC_SITE_URL` in the host's build variables has a stray space or quotes; hosts store the value byte for byte. The build now trims both, but re-enter the value bare (`https://<your-site>`, no quotes, no spaces) anyway.
 - **Site shows demo content**: `SANITY_PROJECT_ID` is not set in the build variables (Workers Builds) or the repository variables (GitHub Actions).
 - **Every publish deploys twice**: both routes are active. Delete the `PUBLIC_SITE_URL` repository variable (Workers Builds route), or disconnect the Worker from Git (GitHub Actions route).
 - **Workers Builds: "Invalid token"**: the API token used by the scaffold is an account token, or lacks _Workers Builds Configuration: Edit_. Create a user token with the two permissions listed above.

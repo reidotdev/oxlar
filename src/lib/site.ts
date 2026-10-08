@@ -5,9 +5,15 @@ import type { SiteSettingsQueryResult } from "./sanity/sanity.types.ts";
 /** `PREVIEW=true` builds the draft preview site (see docs/preview.md when the module is added). Never set in production. */
 export const isPreview = import.meta.env.PREVIEW === "true";
 
-export const siteUrl = (
-  import.meta.env.PUBLIC_SITE_URL ?? "http://localhost:4321"
-).replace(/\/$/, "");
+// Hosts store dashboard values byte for byte: trim, drop one pair of
+// surrounding quotes, drop the trailing slash. Same as `site` in
+// astro.config.mjs: keep the two in sync.
+export const siteUrl =
+  (import.meta.env.PUBLIC_SITE_URL ?? "")
+    .trim()
+    .replace(/^(["'])(.*)\1$/, "$2")
+    .trim()
+    .replace(/\/$/, "") || "http://localhost:4321";
 
 export interface SiteSettings {
   title: string;
