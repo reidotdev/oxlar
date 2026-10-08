@@ -12,7 +12,15 @@ try {
 }
 
 const isBuild = process.argv.includes("build");
-const site = process.env.PUBLIC_SITE_URL?.trim().replace(/\/$/, "");
+// Hosts store dashboard values byte for byte, so a stray space or a pair of
+// quotes arrives as part of the URL. Normalised the same way as `siteUrl` in
+// src/lib/site.ts: keep the two in sync.
+const site =
+  (process.env.PUBLIC_SITE_URL ?? "")
+    .trim()
+    .replace(/^(["'])(.*)\1$/, "$2")
+    .trim()
+    .replace(/\/$/, "") || undefined;
 
 if (isBuild && !site) {
   throw new Error(

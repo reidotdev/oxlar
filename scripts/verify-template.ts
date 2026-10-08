@@ -350,7 +350,7 @@ check("any .env present holds usable values", () => {
         /^(SANITY_PROJECT_ID|SANITY_DATASET|PUBLIC_SITE_URL)=(.*)$/.exec(line);
       if (!m) continue;
       const [, key, value = ""] = m;
-      if (/^["']|["']$|\s$/.test(value))
+      if (/^["'\s]|["'\s]$/.test(value))
         return `${file}: ${key} is quoted or padded. Write values bare: hosts store the bytes they are given, quotes included.`;
       if (key === "SANITY_PROJECT_ID" && value && !/^[a-z0-9-]+$/.test(value))
         return `${file}: SANITY_PROJECT_ID must be a-z, 0-9 and dashes only.`;

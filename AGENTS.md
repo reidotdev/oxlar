@@ -153,7 +153,7 @@ Schema in `studio/schemaTypes/`, register it, add the query to `queries.ts`, run
 
 ## Gotchas that cost a day
 
-1. **Quotes in env values.** `KEY="abc"` reads fine locally and is stored verbatim by hosts, quotes included. Write bare values. `client.ts` and `verify:template` guard it.
+1. **Quotes and spaces in env values.** `KEY="abc"` reads fine locally and is stored verbatim by hosts, quotes included; so is a trailing space pasted into a host dashboard. Write bare values. `client.ts`, `site.ts` with `astro.config.mjs` (`PUBLIC_SITE_URL`) and `verify:template` (for `.env`) guard it.
 2. **`pnpm <name>` runs pnpm's built-in** when one exists (`pnpm setup` edited a shell profile). Script names avoid the built-ins.
 3. **Contrast against the darkest surface.** `--muted-foreground` renders on `--muted` and `--secondary`. Axe in dark mode caught red error text failing on `--dark`.
 4. **`sanity init` clobbers files** it does not own. Never run it here.
