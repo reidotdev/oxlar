@@ -31,7 +31,7 @@ Run in this order. Stop at the first failure and fix it.
 
 ## Sanity
 
-- [ ] Studio deployed (`pnpm --filter oxlar-studio deploy`) and the editors can log in
+- [ ] Studio deployed (`pnpm --filter oxlar-studio run deploy`) and the editors can log in
 - [ ] CORS origins allowed WITH credentials for the Studio URL (never a wildcard)
 - [ ] Webhook configured as in `docs/publishing.md`; publish a test edit and confirm the live page updates
 - [ ] `SANITY_READ_TOKEN` is set only if the dataset is private

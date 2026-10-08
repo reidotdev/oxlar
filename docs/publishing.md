@@ -20,7 +20,7 @@ Latency from clicking Publish to the change being live, measured on the GitHub A
 ## Host the Studio
 
 ```bash
-pnpm --filter oxlar-studio deploy
+pnpm --filter oxlar-studio run deploy
 ```
 
 This runs `sanity deploy` and publishes the Studio at `https://<studio-host>.sanity.studio`. Set `SANITY_STUDIO_HOST` (see `studio/sanity.cli.ts`) for a stable hostname. Or host `studio/` as its own Cloudflare site: `pnpm --filter oxlar-studio build` outputs `studio/dist`.
