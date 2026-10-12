@@ -47,6 +47,9 @@ test("GSAP loads lazily and reveal animates content in", async ({ page }) => {
   await page.goto("/");
   const initial = scripts.filter((u) => /Motion/.test(u));
   expect(initial.length).toBe(1);
+  // Motion loads as a reveal approaches the viewport. A project whose first
+  // reveal sits below a full-height hero would otherwise never load it here.
+  await page.locator("[data-motion]").first().scrollIntoViewIfNeeded();
   // Registry loads GSAP only after idle/intersection, never as part of the initial script.
   await page.waitForFunction(
     () =>
@@ -106,6 +109,7 @@ test("a failed animation module reveals content instead of hiding it", async ({
   );
   await page.goto("/");
   const section = page.locator("[data-motion]").first();
+  await section.scrollIntoViewIfNeeded();
   // The registry reveals content the moment a module fails, so the hidden state is brief.
   await expect(section).toHaveAttribute("data-motion-ready", "", {
     timeout: 6000,

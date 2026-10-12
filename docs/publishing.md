@@ -36,6 +36,26 @@ pnpm exec sanity cors add https://<studio-host>.sanity.studio --credentials
 
 Never allow a wildcard origin with credentials: any page on that domain could then make authenticated requests to the project.
 
+### Redeploy the Studio automatically
+
+The hosted Studio is a build with the schema baked in: a new field, validation rule or structure change is invisible to editors until the Studio is redeployed. Content edits and site changes never need it.
+
+`.github/workflows/studio-deploy.yml` redeploys it on every push to `main` that touches `studio/` or the lockfile, and on a manual run (Actions, Studio deploy, Run workflow). It skips with a notice until it is configured:
+
+1. Deploy the Studio once by hand (above) and commit `deployment.appId` in `studio/sanity.cli.ts`. It pins which hosted Studio the workflow replaces, so the deploy never prompts.
+2. In [sanity.io/manage](https://www.sanity.io/manage), open the project, then API, Tokens, Add API token. Name it `GitHub Studio deploy` and give it the **Deploy Studio** permission. Copy the token.
+3. Store it and the project values in the repository:
+
+   ```bash
+   gh secret set SANITY_AUTH_TOKEN            # paste the token when asked
+   gh variable set SANITY_STUDIO_PROJECT_ID --body <project id from studio/.env>
+   gh variable set SANITY_STUDIO_DATASET --body production
+   ```
+
+4. Run the workflow once by hand to check it.
+
+If the token is revoked, the workflow fails visibly in the Actions tab; the live Studio keeps running the last deployed version.
+
 ## Default: Cloudflare Workers Builds
 
 ```
@@ -214,4 +234,5 @@ Then check the Actions tab for a `Deploy` run triggered by `repository_dispatch`
 - **Workers Builds: `wrangler preview` fails with "missing a `previews` block"**: `wrangler.jsonc` lost its `"previews": {}` entry. Put it back (`pnpm verify:template` checks for it).
 - **Workers Builds: builds ignore the settings shown in the dashboard** (every push builds with `pnpm run build` and no variables, or fails with "PUBLIC_SITE_URL is not set", while the build settings page shows the scaffold's commands): the Worker has more than one trigger for the same branches, usually one left by an earlier connection next to the one the scaffold or the dashboard set up. The scaffold lists the triggers it finds when this happens. Fix: Worker, Settings, Builds, Disconnect; then Connect again and pick the repository; then run `node scripts/scaffold.ts --deploy-only` once (or enter the settings in the dashboard instead, not both). Check the first build's log shows the scaffold's build command.
 - **Workers Builds: no build token, or the repository is not found**: the one-time GitHub connection is missing, or the Cloudflare GitHub app has no access to this repository (GitHub, Settings, Applications, Cloudflare Workers and Pages, Configure).
-- **Changes appear late**: Sanity's API CDN can serve a cached read for a few seconds after publish. A second run, or `useCdn: false`, removes this at the cost of speed.
+- **A published document never reaches the site**: its type is missing from the webhook filter, so publishing it fires no build. `pnpm verify:template` checks that `PUBLISH_FILTER` in `scripts/scaffold.ts` and the filter above list every document type; the webhook already created in Sanity keeps its old filter, so add the type there too (Sanity Manage, API, Webhooks, `Rebuild site`, Filter).
+- **Changes appear late**: the build reads Sanity without the API CDN (`useCdn: false` in `src/lib/sanity/client.ts`), because the CDN can answer with the previous version for a while after a publish and the webhook build would ship stale copy. If a change is still missing, check the build ran after the publish.

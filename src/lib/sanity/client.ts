@@ -50,8 +50,11 @@ export const client = createClient({
   projectId: projectId || "placeholder",
   dataset,
   apiVersion,
-  // CDN for production builds. Preview needs fresh drafts, so no CDN.
-  useCdn: !isPreview,
+  // No CDN: the site only queries at build time (a handful of requests), and
+  // a rebuild fired by the publish webhook must see the document that was
+  // just published. The API CDN can answer with the previous version for a
+  // while after a mutation, so a build could ship stale copy.
+  useCdn: false,
   perspective: isPreview ? "drafts" : "published",
   ...(isPreview && token ? { token } : {}),
 });

@@ -45,17 +45,17 @@ Pinned versions live in `package.json` (exact, no `^`). Key ones: astro 6.4.8, g
 | Tests              | `pnpm test` (Playwright: keyboard, axe, no-JS, motion, SEO, vitals)        |
 | Invariants         | `pnpm verify:template`                                                     |
 | Bundle budgets     | `pnpm perf:size` (after a build)                                           |
-| Lighthouse budgets | `pnpm perf` (after a build; needs Chrome: set `CHROME_PATH`)               |
+| Lighthouse budgets | `pnpm perf` (after a build; needs Chrome: set `CHROME_PATH`; median of 3)  |
 | Sanity types       | `pnpm sanity:types` (extracts the schema and regenerates types)            |
 | Studio (local)     | `pnpm --filter oxlar-studio dev`                                           |
-| Studio (deploy)    | `pnpm --filter oxlar-studio run deploy`                                    |
+| Studio (deploy)    | `pnpm --filter oxlar-studio run deploy` (CI does it on `studio/` changes)  |
 | Deploy the site    | `pnpm cf:deploy` (Workers Builds or CI normally does this)                 |
 | New project        | `pnpm scaffold` (or `--config scaffold.config.json --non-interactive`)     |
 | Deploy on publish  | `node scripts/scaffold.ts --deploy-only` (Workers Builds + Sanity webhook) |
 
 Use `pnpm run <name>` when in doubt: `pnpm <name>` prefers pnpm's own built-in command of the same name. `verify:template` fails if a script name collides with one (`deploy` did, hence `cf:deploy`).
 
-With a pre-installed browser (no `playwright install`), set `PW_CHROMIUM_PATH` to its executable. If port 4321 is taken, set `PW_PORT` (for example `PW_PORT=4399 pnpm test`).
+With a pre-installed browser (no `playwright install`), set `PW_CHROMIUM_PATH` to its executable. If port 4321 is taken, set `PW_PORT` (for example `PW_PORT=4399 pnpm test`); for `pnpm perf`, set `LH_PORT` if 4399 is taken.
 
 `pnpm test` always builds with the demo fixtures: `playwright.config.ts` sets `SANITY_PROJECT_ID` to empty for its web server, overriding `.env`, so a real (even empty) Sanity project never fails the suite.
 
@@ -70,7 +70,7 @@ src/components/   zero-JS .astro components, one per file, PascalCase, no barrel
 src/islands/      the ONLY place client JS lives (besides src/motion)
 src/motion/       GSAP: loader.ts, index.ts (registry), one module per pattern
 src/lib/sanity/   client.ts, queries.ts, image.ts, validate.ts, fixtures.ts, sanity.types.ts
-src/lib/          seo.ts, site.ts, field.ts, format.ts, brand-colors.ts, reserved.ts
+src/lib/          seo.ts, site.ts, locale.ts, url.ts, field.ts, format.ts, brand-colors.ts, reserved.ts
 src/styles/       global.css (layer order) + reset, tokens, base, utilities
 src/icons/        SVG files used by Icon.astro
 studio/           separate Sanity Studio package (schemaTypes/, structure.ts)
@@ -102,14 +102,16 @@ The build must pass with no Sanity credentials: without `SANITY_PROJECT_ID` the 
 - Dark mode is one mapping using `light-dark()`. `<html data-theme="dark|light">` forces a page theme; `data-surface="dark|light"` scopes a section.
 - Contrast is measured against the darkest surface a token renders on, not white. Red used as text uses `--destructive-text`, not `--destructive`.
 - Use modern CSS: nesting, `:has()`, container queries, `clamp()` fluid type, logical properties, `color-mix()`, `@starting-style`, `prefers-reduced-motion`, `forced-colors`.
+- Form controls use `--text-field` (never below 1rem: iOS zooms into smaller inputs on focus) and `--field-height`.
 - Stylelint enforces no raw colours and no px spacing/type outside `tokens.css`. To make an exception, add a `stylelint-disable-next-line` comment with a reason. Prefer adding a token.
 
 ### Components
 
-- One component per file, named props `Props` interface, native elements first (`<button>`, `<a>`, `<dialog>`, `popover`, `<details>`, `<form>`).
+- One component per file, PascalCase English name (a site in another language keeps that language in content and UI copy, not in component names), named props `Props` interface, native elements first (`<button>`, `<a>`, `<dialog>`, `popover`, `<details>`, `<form>`).
 - Every interactive component works without JS where the platform allows, is fully keyboard operable, has a visible focus style from tokens, and meets WCAG 2.2 AA contrast.
 - If a widget is too complex to build accessibly with native HTML, flag it and recommend the `react-islands` module. Do not build it badly.
 - Every component appears in `src/pages/styleguide.astro` with every variant and state (`verify:template` checks the import).
+- The site language (`<html lang>`, date formatting) and the layout's own UI strings live in `src/lib/locale.ts`. The tests read them from there.
 
 ### Motion
 
@@ -127,6 +129,9 @@ The build must pass with no Sanity credentials: without `SANITY_PROJECT_ID` the 
 - Block content renders through `portable-text/RichText.astro`. An unknown block type fails the build on purpose.
 - `validateDocument()` fails the build with the document id on missing title, slug or image alt.
 - Env values are written bare, no quotes (hosts store the bytes verbatim). `client.ts` strips quotes and validates, degrading to demo content with a warning.
+- The build reads Sanity without the API CDN (`useCdn: false`): a webhook build must see the document just published.
+- Every document type is in the publish webhook filter (`PUBLISH_FILTER` in `scripts/scaffold.ts` and `docs/publishing.md`; `verify:template` checks). Singletons are listed in `singletonTypes` (`studio/schemaTypes/index.ts`).
+- External URLs typed by editors render through `toExternalUrl()` (`src/lib/url.ts`): `https:www.x.com` is a relative path to a browser.
 
 ## How to...
 

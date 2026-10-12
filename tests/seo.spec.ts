@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { lang } from "../src/lib/locale.ts";
 
 test("robots.txt points at the sitemap and hides the styleguide", async ({
   request,
@@ -64,7 +65,7 @@ test("a post carries metadata, canonical, OG and valid JSON-LD", async ({
     "content",
     `${baseURL}/og/blog/zero-javascript-by-default.png`,
   );
-  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.locator("html")).toHaveAttribute("lang", lang);
   await expect(page.locator('meta[name="viewport"]')).toHaveCount(1);
   const blocks = await page
     .locator('script[type="application/ld+json"]')

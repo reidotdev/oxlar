@@ -45,13 +45,13 @@ const ids = fieldIds({ id, description, error });
 <style>
   @layer components {
     .control {
-      block-size: 2.5rem;
+      block-size: var(--field-height);
       padding-inline: var(--space-3);
       border: var(--border-width) solid var(--input);
       border-radius: var(--radius-lg);
       background: var(--background);
       color: var(--foreground);
-      font-size: var(--text-sm);
+      font-size: var(--text-field);
       transition: border-color var(--duration-fast) var(--ease-out);
 
       &::placeholder {

@@ -20,7 +20,9 @@ export const DEFAULT_WIDTHS = [320, 480, 640, 800, 1024, 1280, 1600, 2000];
 /**
  * Build an optimised URL: `auto=format` (AVIF/WebP by Accept header), quality,
  * width, with the editor's hotspot and crop honoured by @sanity/image-url.
- * Demo content (no project) passes its local URL through untouched.
+ * Demo content (no project) passes its local URL through untouched, and so
+ * does a site-relative URL in any build (demo images on /styleguide): only
+ * real Sanity assets, whose URLs are absolute, go through the image CDN.
  */
 export function imageUrl(
   source: ImageSource,
@@ -28,7 +30,7 @@ export function imageUrl(
   quality = 80,
 ): string {
   const direct = source.asset?.url;
-  if (!sanityConfigured && direct) return direct;
+  if (direct && (!sanityConfigured || direct.startsWith("/"))) return direct;
   return builder
     .image(source as Parameters<typeof builder.image>[0])
     .width(width)

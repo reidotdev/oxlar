@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { ui } from "../src/lib/locale.ts";
 import { axeViolations, routes } from "./helpers.ts";
 
 /**
@@ -48,7 +49,7 @@ test("focus order starts at the skip link, then the header", async ({
   await page.goto("/");
   await page.keyboard.press("Tab");
   await expect(
-    page.getByRole("link", { name: "Skip to content" }),
+    page.getByRole("link", { name: ui.skipToContent }),
   ).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(
@@ -99,4 +100,21 @@ test("axe: styleguide with an open dialog and menu", async ({ page }) => {
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Open dialog" }).click();
   expect(await axeViolations(page)).toEqual([]);
+});
+
+test("form controls never render text below 16px (iOS zooms into them)", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.goto("/styleguide");
+  const sizes = await page
+    .locator("input:not([type=checkbox], [type=radio]), select, textarea")
+    .evaluateAll((els) =>
+      els.map((el) => ({
+        name: el.getAttribute("name") ?? el.id ?? el.tagName,
+        px: parseFloat(getComputedStyle(el).fontSize),
+      })),
+    );
+  expect(sizes.length, "no form controls on /styleguide").toBeGreaterThan(0);
+  expect(sizes.filter((s) => s.px < 16)).toEqual([]);
 });

@@ -75,8 +75,23 @@ export const siteSettingsType = defineType({
             }),
             defineField({
               name: "url",
+              title: "URL",
               type: "url",
-              validation: (rule) => rule.required(),
+              description:
+                "The full address copied from the browser, starting with https://",
+              validation: (rule) =>
+                rule
+                  .required()
+                  .uri({ scheme: ["https"] })
+                  // uri() accepts "https:www.example.com/…" (no slashes),
+                  // which browsers resolve as a path on this site.
+                  .custom((value) => {
+                    if (!value) return true;
+                    const match = /^https:\/\/([^/?#\s]+)/.exec(value);
+                    return match?.[1]?.includes(".")
+                      ? true
+                      : "Start with https:// followed by the site's address, e.g. https://github.com/<name>";
+                  }),
             }),
           ],
           preview: { select: { title: "label", subtitle: "url" } },
