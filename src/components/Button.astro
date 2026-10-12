@@ -6,6 +6,10 @@ interface Props extends Omit<HTMLAttributes<"button">, "type"> {
   size?: "sm" | "md" | "lg" | "icon";
   /** Renders an <a> when set, otherwise a <button>. */
   href?: string;
+  /** Link only: e.g. `_blank` for an external page. */
+  target?: string;
+  /** Link only. Defaults to `noopener noreferrer` with `target="_blank"`. */
+  rel?: string;
   type?: "button" | "submit" | "reset";
   disabled?: boolean;
 }
@@ -14,6 +18,8 @@ const {
   variant = "primary",
   size = "md",
   href,
+  target,
+  rel = target === "_blank" ? "noopener noreferrer" : undefined,
   type = "button",
   disabled,
   class: className,
@@ -24,6 +30,8 @@ const {
 {href ? (
   <a
     href={href}
+    target={target}
+    rel={rel}
     class:list={["btn", className]}
     data-variant={variant}
     data-size={size}

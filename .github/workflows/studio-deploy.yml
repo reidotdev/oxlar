@@ -1,0 +1,66 @@
+name: Studio deploy
+
+# Redeploys the hosted Sanity Studio when its code lands on main. The hosted
+# Studio is a build with the schema baked in, so a schema change (new field,
+# validation, structure) is invisible to editors until it is redeployed.
+#   - push to main touching studio/ or the lockfile
+#   - manual run
+on:
+  push:
+    branches: [main]
+    paths:
+      - "studio/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/studio-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy at a time; never cut a running deploy short.
+concurrency:
+  group: studio-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      # sanity deploy authenticates with this instead of a user session.
+      SANITY_AUTH_TOKEN: ${{ secrets.SANITY_AUTH_TOKEN }}
+      # Not secret: the project id and dataset are public in every Studio bundle.
+      SANITY_STUDIO_PROJECT_ID: ${{ vars.SANITY_STUDIO_PROJECT_ID }}
+      SANITY_STUDIO_DATASET: ${{ vars.SANITY_STUDIO_DATASET }}
+    steps:
+      - uses: actions/checkout@v7
+      # Skipped (not failed) until the repository has the token and project id
+      # and the Studio's app id is committed, so the template repo and fresh
+      # clones show no red run. Job-level `if` cannot read secrets, hence the
+      # check here.
+      - name: Check configuration
+        id: config
+        run: |
+          if [ -z "$SANITY_AUTH_TOKEN" ] || [ -z "$SANITY_STUDIO_PROJECT_ID" ]; then
+            echo "::notice title=Studio deploy skipped::Set the SANITY_AUTH_TOKEN secret and the SANITY_STUDIO_PROJECT_ID variable (see docs/publishing.md)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif ! grep -Eq 'appId:' studio/sanity.cli.ts; then
+            echo "::notice title=Studio deploy skipped::Deploy the Studio once by hand and commit deployment.appId in studio/sanity.cli.ts (see docs/publishing.md)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.config.outputs.ready == 'true'
+        uses: pnpm/action-setup@v6
+      - if: steps.config.outputs.ready == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - if: steps.config.outputs.ready == 'true'
+        run: pnpm install --frozen-lockfile
+      # deployment.appId in studio/sanity.cli.ts pins the target Studio, and
+      # --yes answers any remaining prompt, so this never waits for input.
+      - name: Deploy the Studio
+        if: steps.config.outputs.ready == 'true'
+        run: pnpm --filter oxlar-studio exec sanity deploy --yes

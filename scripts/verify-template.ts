@@ -444,6 +444,41 @@ check("docs call shadowed workspace scripts with `run`", () => {
     : null;
 });
 
+check("the publish webhook filter covers every document type", () => {
+  // The Sanity webhook fires only for the types its filter lists. A type added
+  // later (a homePage singleton, a project list) and left out of it publishes
+  // fine in the Studio and never reaches the live site.
+  const types = walk("studio/schemaTypes", (p) => p.endsWith(".ts")).flatMap(
+    (file) =>
+      read(file)
+        .split(/\bdefineType\(/)
+        .slice(1)
+        .flatMap((block) => {
+          const name = /\bname:\s*["']([^"']+)["']/.exec(block)?.[1];
+          return name && /\btype:\s*["']document["']/.test(block) ? [name] : [];
+        }),
+  );
+  const filters: Record<string, string> = {
+    "scripts/scaffold.ts":
+      /const PUBLISH_FILTER = `([^`]+)`/.exec(
+        read("scripts/scaffold.ts"),
+      )?.[1] ?? "",
+    "docs/publishing.md":
+      /\| Filter\s*\| `([^`]+)`/.exec(read("docs/publishing.md"))?.[1] ?? "",
+  };
+  const problems = Object.entries(filters).flatMap(([file, filter]) => {
+    const missing = types.filter((t) => !filter.includes(`"${t}"`));
+    return !filter
+      ? [`${file}: webhook filter not found`]
+      : missing.length
+        ? [`${file} lacks ${missing.join(", ")}`]
+        : [];
+  });
+  return problems.length
+    ? `${problems.join("; ")}. Publishing such a document would not rebuild the site. Add the type to both, then to the filter of the existing "Rebuild site" webhook (Sanity Manage, API, Webhooks).`
+    : null;
+});
+
 check("eslint ignores build output at any depth", () => {
   const config = read("eslint.config.mjs");
   const patterns = [

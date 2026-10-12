@@ -3,6 +3,7 @@ import "../styles/global.css";
 import SEO from "../components/SEO.astro";
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
+import { lang, ui } from "../lib/locale.ts";
 import type { SeoData } from "../lib/seo.ts";
 import type { SiteSettings } from "../lib/site.ts";
 
@@ -15,7 +16,7 @@ const { seo, site } = Astro.props;
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang={lang}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -45,7 +46,7 @@ const { seo, site } = Astro.props;
   </head>
   <body>
     <a class="skip-link" href="#main">
-      Skip to content
+      {ui.skipToContent}
     </a>
     <Header site={site} />
     <main id="main" tabindex="-1">
