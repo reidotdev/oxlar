@@ -73,11 +73,11 @@ These two things are done by hand once and reused by every site:
    - **Install it through this Connect flow, not from GitHub's side.** Cloudflare only knows installations made from its dashboard. One installed directly on GitHub fails with "This project is disconnected from your Git account".
    - **Repository access.** _All repositories_ means every future site needs no manual step. _Only select repositories_ means each new site's repository must be added (GitHub, Settings, Applications, Installed GitHub Apps, Cloudflare Workers and Pages, Configure) before the scaffold's deploy step.
    - **If the app's only repository is deleted**, GitHub removes the installation and the link breaks. Connect again from the dashboard.
-2. **Create an API token for the scaffold.** My Profile, API Tokens, Create Token, Custom token, with two permissions: _Account, Workers Builds Configuration, Edit_ and _Account, Workers Scripts, Read_. It must be a user token (the Builds API rejects account tokens). Keep it in your password manager. The scaffold asks for it at a hidden prompt (or reads `CLOUDFLARE_BUILDS_TOKEN` from the environment), uses it for that run only and stores it nowhere.
+2. **Create an API token for the scaffold.** My Profile, API Tokens, Create Token, Custom token, with two permissions: _Account, Workers Builds Configuration, Edit_ and _Account, Workers Scripts, Read_. It must be a user token (the Builds API rejects account tokens). Under _Account Resources_, include every account your sites deploy to (or all accounts). Keep it in your password manager. The scaffold asks for it at a hidden prompt (or reads `CLOUDFLARE_BUILDS_TOKEN` from the environment), uses it for that run only and stores it nowhere.
 
 ### Per site (the scaffold does this)
 
-Run `pnpm scaffold`, or on an existing project `node scripts/scaffold.ts --deploy-only`. It needs the Worker deployed once (the hosting step does that), the GitHub repository, the `gh` CLI and the Sanity CLI logged in. It then:
+Run `pnpm scaffold`, or on an existing project `node scripts/scaffold.ts --deploy-only`. It needs the Worker deployed once (the hosting step does that), the GitHub repository, the `gh` CLI and the Sanity CLI logged in. It connects the builds in the account the hosting step deployed to: `account_id` in `wrangler.jsonc` (see `docs/deployment.md`), else `CLOUDFLARE_ACCOUNT_ID`. It never falls back to another account the token can see; only a project with neither asks (`cloudflare.accountId`) when the token sees several. It then:
 
 1. commits and pushes what the scaffold changed (the Worker name and domain route in `wrangler.jsonc`, any modules), after asking, because Cloudflare builds from GitHub;
 2. connects the repository to the Worker (the production branch is the repository's default branch, usually `main`);
@@ -170,16 +170,16 @@ If you add a document type that renders pages, add it to the filter's `_type in 
 
 Repository settings, Secrets and variables, Actions. Use **repository-level** variables and secrets (not an environment): the deploy job is skipped until the `PUBLIC_SITE_URL` variable exists, and a job-level condition cannot see environment-scoped variables.
 
-| Kind     | Name                    | Purpose                                          |
-| -------- | ----------------------- | ------------------------------------------------ |
-| variable | `PUBLIC_SITE_URL`       | Canonical production URL (no trailing slash)     |
-| variable | `SANITY_PROJECT_ID`     | Sanity project id                                |
-| variable | `SANITY_DATASET`        | Usually `production`                             |
-| variable | `SANITY_API_VERSION`    | Optional, defaults to the version in `client.ts` |
-| variable | `PUBLIC_STYLEGUIDE`     | `false` to leave `/styleguide` out of production |
-| secret   | `SANITY_READ_TOKEN`     | Only for a private dataset                       |
-| secret   | `CLOUDFLARE_API_TOKEN`  | "Edit Cloudflare Workers" token template         |
-| secret   | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account id                            |
+| Kind     | Name                    | Purpose                                                       |
+| -------- | ----------------------- | ------------------------------------------------------------- |
+| variable | `PUBLIC_SITE_URL`       | Canonical production URL (no trailing slash)                  |
+| variable | `SANITY_PROJECT_ID`     | Sanity project id                                             |
+| variable | `SANITY_DATASET`        | Usually `production`                                          |
+| variable | `SANITY_API_VERSION`    | Optional, defaults to the version in `client.ts`              |
+| variable | `PUBLIC_STYLEGUIDE`     | `false` to leave `/styleguide` out of production              |
+| secret   | `SANITY_READ_TOKEN`     | Only for a private dataset                                    |
+| secret   | `CLOUDFLARE_API_TOKEN`  | "Edit Cloudflare Workers" token template                      |
+| secret   | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account id (`account_id` in `wrangler.jsonc` wins) |
 
 The Cloudflare API token can come straight from the **Edit Cloudflare Workers** template in the Cloudflare dashboard (My Profile, API Tokens, Create Token). In our test that one token deployed both the Worker and its custom domain, set as a route in `wrangler.jsonc` (`"routes": [{ "pattern": "<your-domain>", "custom_domain": true }]`). No extra zone or DNS permission was needed.
 
@@ -228,6 +228,8 @@ Then check the Actions tab for a `Deploy` run triggered by `repository_dispatch`
 - **Build fails with `TypeError: Invalid URL`** (often while rendering `/404`), or canonical links look wrong: `PUBLIC_SITE_URL` in the host's build variables has a stray space or quotes; hosts store the value byte for byte. The build now trims both, but re-enter the value bare (`https://<your-site>`, no quotes, no spaces) anyway.
 - **Site shows demo content**: `SANITY_PROJECT_ID` is not set in the build variables (Workers Builds) or the repository variables (GitHub Actions).
 - **Every publish deploys twice**: both routes are active. Delete the `PUBLIC_SITE_URL` repository variable (Workers Builds route), or disconnect the Worker from Git (GitHub Actions route).
+- **Workers Builds: "The API token cannot see account …"**: the token's _Account Resources_ leave out the account in `account_id` (`wrangler.jsonc`). Edit the token to include it, then run `node scripts/scaffold.ts --deploy-only`.
+- **`wrangler deploy`: "More than one account available but unable to select one in non-interactive mode"**: `wrangler.jsonc` has no `account_id`. Re-run `pnpm scaffold` (it asks which account), or add `"account_id": "<id>"` yourself (ids: `pnpm exec wrangler whoami`).
 - **Workers Builds: "Invalid token"**: the API token used by the scaffold is an account token, or lacks _Workers Builds Configuration: Edit_. Create a user token with the two permissions listed above.
 - **Workers Builds: "This project is disconnected from your Git account"**: Cloudflare's link to the GitHub app is gone (uninstalled, installed from GitHub's side, or removed with its only repository). Connect again from the Cloudflare dashboard (Worker, Settings, Builds, Connect, GitHub), then run `node scripts/scaffold.ts --deploy-only`.
 - **Workers Builds: branch or pull-request builds fail with "PUBLIC_SITE_URL is not set"**: the preview trigger has Cloudflare's defaults (`pnpm run build`, no variables). Run `node scripts/scaffold.ts --deploy-only`, or copy the build command and every build variable from the production settings to the Previews settings in the dashboard.

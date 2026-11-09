@@ -33,6 +33,14 @@ import { dirname, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { Writable } from "node:stream";
+import {
+  type CfAccount,
+  isAccountId,
+  parseWhoami,
+  pickAccount,
+  readAccountId,
+  setAccountId,
+} from "./cloudflare-account.ts";
 
 const root = resolve(import.meta.dirname, "..");
 process.chdir(root);
@@ -956,13 +964,158 @@ function buildAndDeploy(siteUrl: string): { ok: boolean; workersDev?: string } {
 }
 
 /**
+ * Which Cloudflare account the Worker deploys to, written into wrangler.jsonc
+ * as `account_id`. Without it, a login that reaches several accounts makes
+ * `wrangler deploy` prompt, and with stdin closed it fails instead ("more
+ * than one account"); a choice from an earlier interactive deploy is cached
+ * in node_modules and reused silently. Wrangler's own order is the same as
+ * here: wrangler.jsonc, then CLOUDFLARE_ACCOUNT_ID. Read-only: it lists the
+ * accounts of the existing login and never logs in or out.
+ */
+async function cloudflareAccount(): Promise<{
+  loggedIn: boolean;
+  account?: CfAccount;
+  /** Set when the account is not known: deploying now could pick the wrong one. */
+  blocked?: boolean;
+}> {
+  const who = parseWhoami(
+    run("pnpm", ["exec", "wrangler", "whoami", "--json"], { capture: true })
+      .stdout,
+  );
+  const named = (id: string) =>
+    who.accounts.find((a) => a.id === id) ?? { id, name: id };
+  const unreachable = (id: string) => {
+    if (who.loggedIn && !who.accounts.some((a) => a.id === id))
+      console.log(
+        c.yellow(
+          `  the wrangler login cannot reach account ${id}: log in as a member of it, or change account_id in wrangler.jsonc`,
+        ),
+      );
+  };
+
+  const inFile = readAccountId(readFileSync("wrangler.jsonc", "utf8"));
+  if (inFile) {
+    const account = named(inFile);
+    console.log(
+      c.dim(
+        `  Cloudflare account: ${account.name === inFile ? inFile : `${account.name} (${inFile})`}, from account_id in wrangler.jsonc`,
+      ),
+    );
+    unreachable(inFile);
+    return { loggedIn: who.loggedIn, account };
+  }
+
+  const how =
+    'add "account_id": "<id>" to wrangler.jsonc (ids: pnpm exec wrangler whoami), or re-run pnpm scaffold';
+  const save = (account: CfAccount, source: string) => {
+    const w = readFileSync("wrangler.jsonc", "utf8");
+    const next = setAccountId(w, account.id);
+    if (next === w) {
+      defer(`Set the Cloudflare account (${account.id})`, how);
+      return;
+    }
+    writeFileSync("wrangler.jsonc", next);
+    run("pnpm", ["exec", "prettier", "--write", "wrangler.jsonc"], {
+      capture: true,
+    });
+    console.log(
+      c.green(
+        `  Cloudflare account: ${account.name === account.id ? account.id : `${account.name} (${account.id})`}, ${source}; saved as account_id in wrangler.jsonc`,
+      ),
+    );
+  };
+
+  const fromEnv = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
+  if (fromEnv && isAccountId(fromEnv)) {
+    const account = named(fromEnv);
+    save(account, "from CLOUDFLARE_ACCOUNT_ID");
+    unreachable(fromEnv);
+    return { loggedIn: who.loggedIn, account };
+  }
+  if (fromEnv)
+    console.log(
+      c.yellow(
+        `  CLOUDFLARE_ACCOUNT_ID "${fromEnv}" is not an account id (32 hex characters), ignored`,
+      ),
+    );
+
+  // Not logged in: the deploy below defers with the login command, as before.
+  if (!who.loggedIn || who.accounts.length === 0) return { loggedIn: false };
+
+  const configured = pick("cloudflare.accountId");
+  if (configured !== undefined && configured !== null && configured !== "") {
+    const account = pickAccount(who.accounts, String(configured));
+    if (!account) {
+      console.log(
+        c.yellow(
+          `  cloudflare.accountId "${String(configured)}" is not an account this wrangler login can reach. Not deploying.`,
+        ),
+      );
+      defer("Choose the Cloudflare account", how);
+      return { loggedIn: true, blocked: true };
+    }
+    save(account, "from cloudflare.accountId");
+    return { loggedIn: true, account };
+  }
+
+  if (who.accounts.length === 1) {
+    save(who.accounts[0]!, "the only one this login can reach");
+    return { loggedIn: true, account: who.accounts[0]! };
+  }
+
+  console.log(
+    [
+      "  This wrangler login can reach several Cloudflare accounts:",
+      ...who.accounts.map((a, i) => `    ${i + 1}) ${a.name}  ${c.dim(a.id)}`),
+      c.dim(
+        "  A dedicated account for this site has to exist first: create it at dash.cloudflare.com/sign-up",
+      ),
+      c.dim(
+        "  (or get invited to it), then re-run pnpm scaffold. Creating an account cannot be automated.",
+      ),
+    ].join("\n"),
+  );
+  if (NON_INTERACTIVE) {
+    console.log(
+      c.yellow(
+        "  No cloudflare.accountId in the config, so no account is chosen. Not deploying.",
+      ),
+    );
+    defer(
+      "Choose the Cloudflare account",
+      `set cloudflare.accountId, or ${how}`,
+    );
+    return { loggedIn: true, blocked: true };
+  }
+  for (;;) {
+    // Straight to the prompt: an empty cloudflare.accountId in a config file
+    // was already treated as unset above.
+    const answer = (
+      await question(
+        `  Deploy to which account? ${c.dim("(number or id, Enter for later)")}: `,
+      )
+    ).trim();
+    if (!answer) {
+      defer("Choose the Cloudflare account", how);
+      return { loggedIn: true, blocked: true };
+    }
+    const account = pickAccount(who.accounts, answer);
+    if (account) {
+      save(account, "chosen");
+      return { loggedIn: true, account };
+    }
+    console.log(c.yellow(`  "${answer}" is not in the list`));
+  }
+}
+
+/**
  * A production URL on the site's own domain needs a route on the Worker, or
  * the domain does not point at it. Writes a custom-domain route into
  * wrangler.jsonc so every deploy (local, Workers Builds, deploy.yml) keeps it.
  * Cloudflare then creates the DNS record and certificate; the domain's zone
  * must be on Cloudflare, in the same account.
  */
-async function attachCustomDomain(siteUrl: string) {
+async function attachCustomDomain(siteUrl: string, accountName?: string) {
   let host = "";
   try {
     host = new URL(siteUrl).hostname;
@@ -983,7 +1136,7 @@ async function attachCustomDomain(siteUrl: string) {
   }
   const answer = await decide(
     "cloudflare.customDomain",
-    `  Attach ${host} to the Worker? Its DNS must be on Cloudflare, in this account`,
+    `  Attach ${host} to the Worker? Its DNS must be on Cloudflare, in ${accountName ? `the account ${accountName}` : "the same account"}`,
   );
   if (answer !== "yes") {
     if (answer === "later") defer(`Attach ${host} to the Worker`, how);
@@ -1008,6 +1161,8 @@ async function attachCustomDomain(siteUrl: string) {
 
 interface DeployContext {
   name: string;
+  /** The account step 8 deployed to (account_id in wrangler.jsonc), if known. */
+  accountId: string | undefined;
   siteUrl: string;
   projectId: string | undefined;
   dataset: string;
@@ -1178,14 +1333,32 @@ async function buildsRoute(ctx: DeployContext) {
       "Connect Workers Builds",
       `The token was rejected (${accounts.ok ? "no accounts" : accounts.error}). It must be a user token with the two permissions above.`,
     );
+  // The Worker lives in the account the hosting step chose (account_id in
+  // wrangler.jsonc). Never fall back to another one: the builds would be
+  // connected to a Worker that does not exist there, or to the wrong site.
   let account = accounts.result[0]!;
-  if (accounts.result.length > 1) {
+  if (ctx.accountId) {
+    const same = accounts.result.find((a) => a.id === ctx.accountId);
+    if (!same)
+      return later(
+        "Connect Workers Builds",
+        `The API token cannot see account ${ctx.accountId} (account_id in wrangler.jsonc). Edit the token so its Account Resources include that account (or use a token that does).`,
+      );
+    account = same;
+    console.log(c.dim(`  account: ${account.name} (${account.id})`));
+  } else if (accounts.result.length > 1) {
     const wanted = await ask(
       "cloudflare.accountId",
       `  Account id (${accounts.result.map((a) => `${a.name}: ${a.id}`).join(", ")})`,
       account.id,
     );
-    account = accounts.result.find((a) => a.id === wanted) ?? account;
+    const chosen = wanted ? pickAccount(accounts.result, wanted) : account;
+    if (!chosen)
+      return later(
+        "Connect Workers Builds",
+        `"${wanted}" is not an account this token can see.`,
+      );
+    account = chosen;
   }
   const acc = `/accounts/${account.id}`;
 
@@ -1630,7 +1803,9 @@ async function actionsRoute(ctx: DeployContext) {
   // Secrets are typed at gh's own prompt, never passed on a command line.
   defer(
     "Set the two Cloudflare secrets (type each command, paste the value at the prompt)",
-    "gh secret set CLOUDFLARE_API_TOKEN, then gh secret set CLOUDFLARE_ACCOUNT_ID",
+    ctx.accountId
+      ? `gh secret set CLOUDFLARE_API_TOKEN, then gh secret set CLOUDFLARE_ACCOUNT_ID (${ctx.accountId}; wrangler uses account_id in wrangler.jsonc first, so the secret only has to match it)`
+      : "gh secret set CLOUDFLARE_API_TOKEN, then gh secret set CLOUDFLARE_ACCOUNT_ID",
   );
   const repo = run(
     "gh",
@@ -1695,6 +1870,10 @@ async function main() {
     const w = readFileSync("wrangler.jsonc", "utf8");
     await deployStep(1, {
       name: /"name"\s*:\s*"([^"]+)"/.exec(w)?.[1] ?? "",
+      // Same order as wrangler: wrangler.jsonc, then the environment.
+      accountId:
+        readAccountId(w) ??
+        (process.env.CLOUDFLARE_ACCOUNT_ID?.trim() || undefined),
       siteUrl: normalizeSiteUrl(env.get("PUBLIC_SITE_URL") ?? "").url,
       projectId: env.get("SANITY_PROJECT_ID") || undefined,
       dataset: env.get("SANITY_DATASET") || "production",
@@ -1879,20 +2058,18 @@ async function main() {
 
   // 8. Cloudflare Workers
   step(8, "Cloudflare Workers");
-  await attachCustomDomain(siteUrl);
+  // The account comes first: the domain's zone must be in it, and step 9
+  // connects the builds of the Worker in that same account.
+  const cfAccount = await cloudflareAccount();
+  await attachCustomDomain(siteUrl, cfAccount.account?.name);
   {
     const deploy = await decide(
       "cloudflare.deploy",
       "  Build and deploy to Cloudflare Workers now?",
     );
-    const who = run("pnpm", ["exec", "wrangler", "whoami"], { capture: true });
     const cmd =
       "pnpm exec wrangler login && pnpm build && pnpm cf:deploy  (reads PUBLIC_SITE_URL from .env)";
-    if (
-      deploy === "yes" &&
-      who.ok &&
-      /logged in|email/i.test(who.stdout + who.stderr)
-    ) {
+    if (deploy === "yes" && cfAccount.loggedIn && !cfAccount.blocked) {
       const result = buildAndDeploy(siteUrl || "http://localhost:4321");
       // No domain given: the first deploy reveals the *.workers.dev address.
       // Save it and deploy again, so canonical links and the sitemap use it.
@@ -1926,6 +2103,7 @@ async function main() {
   // 9. Deploy on push and on Publish
   await deployStep(9, {
     name,
+    accountId: cfAccount.account?.id,
     siteUrl: siteUrl || "http://localhost:4321",
     projectId,
     dataset: readEnvFile().get("SANITY_DATASET") || "production",
