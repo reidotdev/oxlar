@@ -48,6 +48,7 @@
   "$comment_cloudflare": [
     "accountId: the Cloudflare account to deploy to (id, or its exact name), saved as account_id in wrangler.jsonc. Needed headless when the wrangler login reaches several accounts; ignored when wrangler.jsonc already has account_id or CLOUDFLARE_ACCOUNT_ID is set. The account must exist already (dash.cloudflare.com/sign-up).",
     "customDomain: true adds the production URL's host as a custom-domain route in wrangler.jsonc (DNS on Cloudflare, same account). Ignored for *.workers.dev.",
+    "workersDevSubdomain: the account's workers.dev subdomain to register if the first deploy finds none (a new account). Once per account; every Worker in it is then at <worker>.<subdomain>.workers.dev. Empty: interactively the scaffold asks (default: the Worker name), headless it defers with the dashboard link.",
     "deploy: true builds and runs `wrangler deploy` (needs wrangler logged in). \"later\" prints the commands.",
     "autoDeploy: \"1\" Workers Builds + deploy hook + Sanity webhook (default), \"2\" GitHub Actions, \"3\" later.",
     "Workers Builds reads its API token from CLOUDFLARE_BUILDS_TOKEN in the environment, never from this file. See docs/publishing.md.",
@@ -57,6 +58,7 @@
   "cloudflare": {
     "accountId": "",
     "customDomain": false,
+    "workersDevSubdomain": "",
     "deploy": "later",
     "autoDeploy": "1",
     "previewBuilds": true,

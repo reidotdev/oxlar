@@ -41,6 +41,15 @@ import {
   readAccountId,
   setAccountId,
 } from "./cloudflare-account.ts";
+import {
+  isValidSubdomain,
+  needsWorkersDevSubdomain,
+  parseAuthToken,
+  readWorkerName,
+  SUBDOMAIN_TAKEN,
+  subdomainDashboardUrl,
+  toValidSubdomain,
+} from "./workers-dev-subdomain.ts";
 
 const root = resolve(import.meta.dirname, "..");
 process.chdir(root);
@@ -796,7 +805,9 @@ async function cf<T>(
   token: string,
   path: string,
   init: { method?: string; body?: unknown } = {},
-): Promise<{ ok: true; result: T } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; result: T } | { ok: false; error: string; codes?: number[] }
+> {
   try {
     const res = await fetch(`https://api.cloudflare.com/client/v4${path}`, {
       method: init.method ?? "GET",
@@ -811,7 +822,10 @@ async function cf<T>(
     const msg =
       json.errors?.map((e) => e.message ?? String(e.code)).join("; ") ||
       `HTTP ${res.status}`;
-    return { ok: false, error: msg };
+    const codes = (json.errors ?? []).flatMap((e) =>
+      typeof e.code === "number" ? [e.code] : [],
+    );
+    return { ok: false, error: msg, codes };
   } catch (error) {
     return { ok: false, error: (error as Error).message };
   }
@@ -950,17 +964,144 @@ async function createSanityWebhook(
   return true;
 }
 
-/** Builds with the given site URL and runs `wrangler deploy`, echoing its output. */
-function buildAndDeploy(siteUrl: string): { ok: boolean; workersDev?: string } {
-  if (!run("pnpm", ["build"], { env: { PUBLIC_SITE_URL: siteUrl } }).ok)
-    return { ok: false };
+/** Runs `wrangler deploy`, echoing its output, and finds the *.workers.dev URL in it. */
+function wranglerDeploy() {
   const d = run("pnpm", ["exec", "wrangler", "deploy"], { capture: true });
   process.stdout.write(d.stdout);
   process.stderr.write(d.stderr);
   const workersDev = /https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev/.exec(
     d.stdout,
   )?.[0];
-  return { ok: d.ok, ...(workersDev ? { workersDev } : {}) };
+  return { ...d, ...(workersDev ? { workersDev } : {}) };
+}
+
+/**
+ * Builds with the given site URL and runs `wrangler deploy`. When the deploy
+ * fails because the account has no workers.dev subdomain yet (a new account),
+ * registers one and deploys again; wrangler cannot do it itself here, as its
+ * question needs a TTY and stdin is closed.
+ */
+async function buildAndDeploy(
+  siteUrl: string,
+  accountId?: string,
+): Promise<{ ok: boolean; workersDev?: string }> {
+  if (!run("pnpm", ["build"], { env: { PUBLIC_SITE_URL: siteUrl } }).ok)
+    return { ok: false };
+  let d = wranglerDeploy();
+  if (
+    !d.ok &&
+    accountId &&
+    needsWorkersDevSubdomain(`${d.stdout}\n${d.stderr}`) &&
+    (await registerWorkersDevSubdomain(accountId))
+  )
+    d = wranglerDeploy();
+  return { ok: d.ok, ...(d.workersDev ? { workersDev: d.workersDev } : {}) };
+}
+
+/**
+ * Registers the account's workers.dev subdomain, once per account, the way
+ * wrangler does (PUT /accounts/{id}/workers/subdomain) with wrangler's own
+ * login (`wrangler auth token --json`, never stored). The name comes from
+ * cloudflare.workersDevSubdomain, else a prompt whose default is the Worker
+ * name (wrangler's own choice). Headless without the key it defers.
+ */
+async function registerWorkersDevSubdomain(accountId: string) {
+  const dashboard = subdomainDashboardUrl(accountId);
+  const how = `register it at ${dashboard} (or run pnpm build && pnpm cf:deploy in a terminal, which asks), then: pnpm build && pnpm cf:deploy`;
+  const worker = readWorkerName(readFileSync("wrangler.jsonc", "utf8"));
+  const suggested = toValidSubdomain(worker ?? "my-site");
+  console.log(
+    [
+      c.yellow(
+        "  This Cloudflare account has no workers.dev subdomain yet (a new account has none).",
+      ),
+      c.dim(
+        `  It is set once per account: every Worker in it is then at <worker>.<subdomain>.workers.dev.`,
+      ),
+    ].join("\n"),
+  );
+  const configured = pick("cloudflare.workersDevSubdomain");
+  const fromConfig =
+    configured !== undefined && configured !== null && configured !== "";
+  if (!fromConfig && NON_INTERACTIVE) {
+    console.log(
+      c.yellow(
+        "  No cloudflare.workersDevSubdomain in the config. Not deploying.",
+      ),
+    );
+    defer(
+      "Register the account's workers.dev subdomain",
+      `set cloudflare.workersDevSubdomain and re-run, or ${how}`,
+    );
+    return false;
+  }
+  const token = parseAuthToken(
+    run("pnpm", ["exec", "wrangler", "auth", "token", "--json"], {
+      capture: true,
+    }).stdout,
+  );
+  if (!token) {
+    console.log(
+      c.yellow("  Could not read the wrangler login token to register it."),
+    );
+    defer("Register the account's workers.dev subdomain", how);
+    return false;
+  }
+  let name = fromConfig ? String(configured).trim() : "";
+  for (;;) {
+    if (!fromConfig) {
+      const answer = (
+        await question(
+          `  workers.dev subdomain to register ${c.dim(`[${suggested}] ("later" to skip)`)}: `,
+        )
+      ).trim();
+      if (answer === "later") {
+        defer("Register the account's workers.dev subdomain", how);
+        return false;
+      }
+      name = answer || suggested;
+    }
+    if (!isValidSubdomain(name)) {
+      console.log(
+        c.yellow(
+          `  "${name}" is not a valid subdomain: lowercase letters, digits and inner hyphens, at most 63.`,
+        ),
+      );
+    } else {
+      const put = await cf<{ subdomain: string }>(
+        token,
+        `/accounts/${accountId}/workers/subdomain`,
+        { method: "PUT", body: { subdomain: name } },
+      );
+      if (put.ok) {
+        console.log(
+          [
+            c.green(
+              `  Registered ${put.result.subdomain || name}.workers.dev for the account; deploying again`,
+            ),
+            c.dim(
+              `  DNS for a new subdomain can take a few minutes, so the site may not answer at once. Change it at ${dashboard}`,
+            ),
+          ].join("\n"),
+        );
+        return true;
+      }
+      console.log(
+        c.yellow(
+          put.codes?.includes(SUBDOMAIN_TAKEN)
+            ? `  "${name}" is taken.`
+            : `  Could not register "${name}": ${put.error}`,
+        ),
+      );
+    }
+    if (fromConfig) {
+      defer(
+        "Register the account's workers.dev subdomain",
+        `change cloudflare.workersDevSubdomain and re-run, or ${how}`,
+      );
+      return false;
+    }
+  }
 }
 
 /**
@@ -2070,7 +2211,10 @@ async function main() {
     const cmd =
       "pnpm exec wrangler login && pnpm build && pnpm cf:deploy  (reads PUBLIC_SITE_URL from .env)";
     if (deploy === "yes" && cfAccount.loggedIn && !cfAccount.blocked) {
-      const result = buildAndDeploy(siteUrl || "http://localhost:4321");
+      const result = await buildAndDeploy(
+        siteUrl || "http://localhost:4321",
+        cfAccount.account?.id,
+      );
       // No domain given: the first deploy reveals the *.workers.dev address.
       // Save it and deploy again, so canonical links and the sitemap use it.
       if (result.ok && !siteUrl && result.workersDev) {
@@ -2081,7 +2225,11 @@ async function main() {
             `  the site is at ${siteUrl} (saved to .env); deploying again with it`,
           ),
         );
-        record("hosting", buildAndDeploy(siteUrl).ok, siteUrl);
+        record(
+          "hosting",
+          (await buildAndDeploy(siteUrl, cfAccount.account?.id)).ok,
+          siteUrl,
+        );
       } else
         record(
           "hosting",
